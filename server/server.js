@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
 // Load environment variables
 dotenv.config();
@@ -10,31 +11,26 @@ dotenv.config();
 // Initialize Express app
 const app = express();
 
-// Import custom CORS middleware
-const corsMiddleware = require('./middleware/cors');
-
-// Apply CORS middleware
-app.use(corsMiddleware);
-
-// Standard CORS middleware as fallback
+// Middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://testfyrwanda.vercel.app', 'https://nationalscore.vercel.app', process.env.FRONTEND_URL].filter(Boolean)
+    ? process.env.FRONTEND_URL || 'https://testfyrwanda.vercel.app'
     : 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  credentials: true
 }));
-
-// Pre-flight OPTIONS request handler
-app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files - adjust for Vercel deployment
+// Serve uploaded files - adjust for Render deployment
 const uploadsPath = process.env.NODE_ENV === 'production'
-  ? path.join('/tmp/uploads') // Use /tmp for Vercel serverless functions
+  ? '/var/data/uploads' // Use persistent disk on Render
   : path.join(__dirname, '../uploads');
+
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+  console.log('Created uploads directory:', uploadsPath);
+}
 
 app.use('/uploads', express.static(uploadsPath));
 
@@ -52,17 +48,12 @@ app.use('/api/student', studentRoutes);
 app.use('/api/exam', examRoutes);
 app.use('/api/profile', profileRoutes);
 
-// Health check endpoint for Vercel
+// Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', environment: process.env.NODE_ENV });
-});
-
-// CORS test endpoint
-app.get('/api/cors-test', (req, res) => {
   res.status(200).json({
-    message: 'CORS is working correctly!',
-    origin: req.headers.origin || 'No origin header',
-    headers: req.headers
+    status: 'ok',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -71,18 +62,12 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     console.log('Connected to MongoDB');
 
-    // Only start the server in development mode
-    // In production (Vercel), we use serverless functions
-    if (process.env.NODE_ENV !== 'production') {
-      const PORT = process.env.PORT || 5000;
-      app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-      });
-    }
+    // Start server
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   })
   .catch(err => {
     console.error('MongoDB connection error:', err);
   });
-
-// Export the Express app for Vercel serverless deployment
-module.exports = app;
