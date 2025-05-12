@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -17,5 +18,18 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    // Enable history API fallback for SPA routing
+    historyApiFallback: true,
+  },
+  build: {
+    // Generate a 200.html file for Vercel
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        nested: resolve(__dirname, '404.html'),
+      },
+    },
+    // Ensure assets are correctly referenced
+    assetsDir: 'assets',
   },
 });
