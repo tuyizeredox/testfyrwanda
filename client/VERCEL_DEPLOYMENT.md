@@ -24,7 +24,7 @@ This guide explains how to deploy the Testify frontend to Vercel with proper SPA
 3. Build your frontend locally to test:
    ```
    cd client
-   npm run build
+   npm run build:vercel
    ```
 
 ### 2. Deploy to Vercel
@@ -36,7 +36,7 @@ This guide explains how to deploy the Testify frontend to Vercel with proper SPA
 3. Configure the project:
    - **Framework Preset**: Vite
    - **Root Directory**: `client`
-   - **Build Command**: `npm run build`
+   - **Build Command**: `npm run build:vercel`
    - **Output Directory**: `dist`
    - **Install Command**: `npm install`
 
@@ -94,9 +94,10 @@ If you still encounter "not found" errors when refreshing:
 
 3. **Check build output**: Verify that the build process is generating the correct files:
    ```
-   npm run build
+   npm run build:vercel
    ```
-   
+   This should create `index.html`, `200.html`, and `404.html` in the `dist` directory.
+
 4. **Update project settings**: In the Vercel dashboard, go to your project settings and:
    - Under "Build & Development Settings", ensure the framework preset is set to "Vite"
    - Under "Output Directory", ensure it's set to "dist"

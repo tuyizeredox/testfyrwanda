@@ -22,14 +22,9 @@ export default defineConfig({
     historyApiFallback: true,
   },
   build: {
-    // Generate a 200.html file for Vercel
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        nested: resolve(__dirname, '404.html'),
-      },
-    },
     // Ensure assets are correctly referenced
     assetsDir: 'assets',
+    // Output directory
+    outDir: 'dist',
   },
 });
