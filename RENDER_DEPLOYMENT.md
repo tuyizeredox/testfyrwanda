@@ -94,7 +94,11 @@ This guide explains how to deploy the Testify backend to Render.com.
 
 - Render has ephemeral storage by default, which means uploaded files will be lost when the service restarts
 - We've configured a persistent disk in the `render.yaml` file to store uploads
-- Make sure the disk is properly mounted at `/var/data/uploads`
+- The application has fallback logic to handle cases where the disk isn't properly mounted
+- If you encounter permission errors with `/var/data/uploads`:
+  1. Check if the disk is properly mounted in the Render dashboard
+  2. The application will automatically fall back to using a temporary directory
+  3. You can also manually set an environment variable `UPLOADS_PATH` to specify a custom path
 
 ## Maintenance
 

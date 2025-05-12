@@ -22,17 +22,68 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files - adjust for Render deployment
-const uploadsPath = process.env.NODE_ENV === 'production'
-  ? '/var/data/uploads' // Use persistent disk on Render
-  : path.join(__dirname, '../uploads');
+let uploadsPath;
 
-// Create uploads directory if it doesn't exist
-if (!fs.existsSync(uploadsPath)) {
-  fs.mkdirSync(uploadsPath, { recursive: true });
-  console.log('Created uploads directory:', uploadsPath);
+// Try to use the primary uploads path first
+try {
+  // In production, try to use the Render disk mount point
+  if (process.env.NODE_ENV === 'production') {
+    // Check if a custom uploads path is specified
+    const primaryPath = process.env.UPLOADS_PATH || '/var/data/uploads';
+
+    if (fs.existsSync(primaryPath)) {
+      // Directory exists, check if it's writable
+      try {
+        fs.accessSync(primaryPath, fs.constants.W_OK);
+        uploadsPath = primaryPath;
+        console.log('Using primary uploads directory:', uploadsPath);
+      } catch (err) {
+        console.warn('Primary uploads directory exists but is not writable, using fallback');
+        uploadsPath = path.join(process.cwd(), 'tmp', 'uploads');
+      }
+    } else {
+      // Try to create the directory
+      try {
+        fs.mkdirSync(primaryPath, { recursive: true });
+        uploadsPath = primaryPath;
+        console.log('Created primary uploads directory:', uploadsPath);
+      } catch (err) {
+        console.warn('Could not create primary uploads directory, using fallback:', err.message);
+        uploadsPath = path.join(process.cwd(), 'tmp', 'uploads');
+      }
+    }
+  } else {
+    // In development, use the local uploads directory
+    uploadsPath = path.join(__dirname, '../uploads');
+  }
+
+  // Ensure the uploads directory exists
+  if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(uploadsPath, { recursive: true });
+    console.log('Created uploads directory:', uploadsPath);
+  }
+} catch (err) {
+  // Final fallback if everything else fails
+  console.error('Error setting up uploads directory:', err);
+  uploadsPath = path.join(process.cwd(), 'tmp', 'uploads');
+
+  // Create the fallback directory
+  if (!fs.existsSync(uploadsPath)) {
+    try {
+      fs.mkdirSync(uploadsPath, { recursive: true });
+      console.log('Created fallback uploads directory:', uploadsPath);
+    } catch (innerErr) {
+      console.error('Failed to create fallback uploads directory:', innerErr);
+      // At this point, we'll just use the path but uploads won't work
+    }
+  }
 }
 
+// Use the determined uploads path
 app.use('/uploads', express.static(uploadsPath));
+
+// Log the final uploads path for debugging
+console.log('Final uploads path:', uploadsPath);
 
 // Import routes
 const authRoutes = require('./routes/auth');

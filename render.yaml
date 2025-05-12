@@ -18,6 +18,10 @@ services:
         sync: false # This will be set manually in the Render dashboard
       - key: FRONTEND_URL
         value: https://testfyrwanda.vercel.app
+      - key: UPLOADS_PATH
+        value: /var/data/uploads
+    # Disk configuration - this creates a persistent disk
+    # Note: The application has fallback logic if this isn't available
     disk:
       name: uploads
       mountPath: /var/data/uploads
