@@ -57,21 +57,49 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      // Make API call to login endpoint using axios
-      const response = await api.post('/auth/login', {
-        email: userData.email,
-        password: userData.password,
-      });
+      let response;
+      let user;
 
-      // Create user object from response
-      const user = {
-        id: response.data._id,
-        email: response.data.email,
-        firstName: response.data.firstName,
-        lastName: response.data.lastName,
-        role: response.data.role,
-        token: response.data.token,
-      };
+      try {
+        // First try the regular API
+        console.log('Attempting login with regular API');
+        response = await api.post('/auth/login', {
+          email: userData.email,
+          password: userData.password,
+        });
+
+        // Create user object from response
+        user = {
+          id: response.data._id,
+          email: response.data.email,
+          firstName: response.data.firstName,
+          lastName: response.data.lastName,
+          role: response.data.role,
+          token: response.data.token,
+        };
+      } catch (apiError) {
+        console.error('Regular API login failed, trying direct login:', apiError);
+
+        // If regular API fails, try direct login
+        // Import the direct login function dynamically to avoid circular dependencies
+        const { directLogin } = await import('../services/directLogin');
+
+        // Try direct login
+        const directLoginData = await directLogin({
+          email: userData.email,
+          password: userData.password,
+        });
+
+        // Create user object from direct login response
+        user = {
+          id: directLoginData._id,
+          email: directLoginData.email,
+          firstName: directLoginData.firstName,
+          lastName: directLoginData.lastName,
+          role: directLoginData.role,
+          token: directLoginData.token,
+        };
+      }
 
       // Save user to localStorage
       localStorage.setItem('user', JSON.stringify(user));
