@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="192" height="192" rx="38" fill="url(#paint0_linear)" />
+  
+  <!-- Graduation Cap -->
+  <path d="M96 45L36 75L96 105L156 75L96 45Z" fill="white" />
+  <path d="M66 86V116C66 124 80 131 96 131C112 131 126 124 126 116V86" stroke="white" stroke-width="6" stroke-linecap="round" />
+  <path d="M156 75V105" stroke="white" stroke-width="6" stroke-linecap="round" />
+  
+  <!-- Test Paper -->
+  <rect x="66" y="67" width="60" height="75" rx="3" fill="#4A148C" stroke="white" stroke-width="3" />
+  <line x1="75" y1="82" x2="117" y2="82" stroke="white" stroke-width="3" stroke-linecap="round" />
+  <line x1="75" y1="97" x2="117" y2="97" stroke="white" stroke-width="3" stroke-linecap="round" />
+  <line x1="75" y1="112" x2="105" y2="112" stroke="white" stroke-width="3" stroke-linecap="round" />
+  
+  <!-- Letter T for Testify -->
+  <path d="M96 45L96 142" stroke="white" stroke-width="9" stroke-linecap="round" />
+  <path d="M73 52L119 52" stroke="white" stroke-width="9" stroke-linecap="round" />
+  
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="paint0_linear" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4A148C" />
+      <stop offset="1" stop-color="#7C43BD" />
+    </linearGradient>
+  </defs>
+</svg>

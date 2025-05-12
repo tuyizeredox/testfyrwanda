@@ -1,0 +1,432 @@
+import React, { useState } from 'react';
+import {
+  Box,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Collapse,
+  Divider,
+  Typography,
+  Avatar,
+  IconButton,
+  useTheme,
+  useMediaQuery,
+  alpha
+} from '@mui/material';
+import {
+  Dashboard as DashboardIcon,
+  Assignment as ExamIcon,
+  People as StudentIcon,
+  BarChart as AnalyticsIcon,
+  Security as SecurityIcon,
+  Settings as SettingsIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  ChevronLeft as ChevronLeftIcon,
+  School as SchoolIcon
+} from '@mui/icons-material';
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
+
+// Sidebar width
+const drawerWidth = 280;
+
+const Sidebar = ({ open, onClose }) => {
+  const theme = useTheme();
+  const location = useLocation();
+  const { user } = useAuth();
+
+  // State for expanded menu items
+  const [expandedItems, setExpandedItems] = useState({
+    exams: location.pathname.includes('/admin/exams'),
+    students: location.pathname.includes('/admin/students'),
+    results: location.pathname.includes('/admin/results'),
+    security: location.pathname.includes('/admin/security'),
+    settings: location.pathname.includes('/admin/settings')
+  });
+
+  // Toggle expanded state for menu items
+  const handleToggleExpand = (item) => {
+    setExpandedItems({
+      ...expandedItems,
+      [item]: !expandedItems[item]
+    });
+  };
+
+  // Check if a route is active
+  const isActive = (path) => {
+    return location.pathname === `/admin${path}`;
+  };
+
+  // Check if a parent route is active
+  const isParentActive = (path) => {
+    return location.pathname.startsWith(`/admin${path}`);
+  };
+
+  // Menu items configuration
+  const menuItems = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: <DashboardIcon />,
+      path: '/',
+      exact: true
+    },
+    {
+      id: 'exams',
+      label: 'Exam Management',
+      icon: <ExamIcon />,
+      expandable: true,
+      subItems: [
+        { id: 'exams-list', label: 'All Exams', path: '/exams' },
+        { id: 'exams-create', label: 'Create Exam', path: '/exams/create' },
+        { id: 'exams-schedule', label: 'Schedule Exam', path: '/exams/schedule' },
+        { id: 'exams-scheduled', label: 'Scheduled Exams', path: '/exams/scheduled' },
+        { id: 'exams-grading', label: 'AI Grading', path: '/exams/grading' },
+        { id: 'exams-regrade', label: 'Regrade Exams', path: '/exams/regrade' },
+        { id: 'exams-templates', label: 'Exam Templates', path: '/exams/templates' }
+      ]
+    },
+    {
+      id: 'students',
+      label: 'Student Management',
+      icon: <StudentIcon />,
+      expandable: true,
+      subItems: [
+        { id: 'students-list', label: 'All Students', path: '/students' },
+        { id: 'students-add', label: 'Add Student', path: '/students/add' },
+        { id: 'students-import', label: 'Import Students', path: '/students/import' },
+        { id: 'students-groups', label: 'Student Groups', path: '/students/groups' }
+      ]
+    },
+    {
+      id: 'results',
+      label: 'Results & Analytics',
+      icon: <AnalyticsIcon />,
+      expandable: true,
+      subItems: [
+        { id: 'results-overview', label: 'Results Overview', path: '/results' },
+        { id: 'results-analytics', label: 'Performance Analytics', path: '/results/analytics' },
+        { id: 'results-leaderboard', label: 'Student Leaderboard', path: '/results/leaderboard' },
+        { id: 'results-export', label: 'Export Data', path: '/results/export' }
+      ]
+    },
+    {
+      id: 'security',
+      label: 'Security',
+      icon: <SecurityIcon />,
+      expandable: true,
+      subItems: [
+        { id: 'security-monitoring', label: 'Live Monitoring', path: '/security/monitoring' },
+        { id: 'security-alerts', label: 'Security Alerts', path: '/security/alerts' },
+        { id: 'security-logs', label: 'Activity Logs', path: '/security/logs' }
+      ]
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: <SettingsIcon />,
+      expandable: true,
+      subItems: [
+        { id: 'settings-profile', label: 'Profile Settings', path: '/settings/profile' },
+        { id: 'settings-system', label: 'System Settings', path: '/settings/system' },
+        { id: 'settings-appearance', label: 'Appearance', path: '/settings/appearance' }
+      ]
+    }
+  ];
+
+  // Render sidebar content
+  const sidebarContent = (
+    <>
+      {/* Logo and close button */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 2,
+          height: 70,
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)}, ${alpha(theme.palette.secondary.main, 0.05)})`,
+          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Avatar
+            sx={{
+              width: 40,
+              height: 40,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              boxShadow: `0 4px 8px ${alpha(theme.palette.primary.main, 0.3)}`,
+              mr: 1.5
+            }}
+          >
+            <SchoolIcon sx={{ fontSize: 24 }} />
+          </Avatar>
+          <Box>
+            <Typography
+              variant="h5"
+              component="div"
+              sx={{
+                fontWeight: 700,
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                letterSpacing: '0.5px'
+              }}
+            >
+              Testify
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: alpha(theme.palette.text.secondary, 0.8),
+                display: 'block',
+                marginTop: -0.5
+              }}
+            >
+              Exam Management System
+            </Typography>
+          </Box>
+        </Box>
+        <IconButton
+          onClick={onClose}
+          sx={{
+            display: { md: 'none' },
+            backgroundColor: alpha(theme.palette.primary.main, 0.1),
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.primary.main, 0.2),
+            }
+          }}
+        >
+          <ChevronLeftIcon />
+        </IconButton>
+      </Box>
+
+      <Divider />
+
+      {/* User profile section */}
+      <Box
+        sx={{
+          p: 3,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          mb: 1,
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)}, ${alpha(theme.palette.secondary.main, 0.03)})`,
+        }}
+      >
+        <Avatar
+          sx={{
+            width: 90,
+            height: 90,
+            mb: 2,
+            background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+            boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+            border: `4px solid ${alpha(theme.palette.background.paper, 0.9)}`
+          }}
+        >
+          {user?.firstName?.charAt(0) || user?.email?.charAt(0) || 'A'}
+        </Avatar>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          {user?.firstName ? `${user.firstName} ${user.lastName}` : user?.email || 'Admin User'}
+        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            mt: 0.5,
+            backgroundColor: alpha(theme.palette.success.main, 0.1),
+            color: theme.palette.success.main,
+            px: 1.5,
+            py: 0.5,
+            borderRadius: 10,
+          }}
+        >
+          <Box
+            sx={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              bgcolor: theme.palette.success.main,
+              mr: 1
+            }}
+          />
+          <Typography variant="caption" fontWeight="medium">
+            Administrator
+          </Typography>
+        </Box>
+      </Box>
+
+      <Divider />
+
+      {/* Navigation menu */}
+      <List sx={{ px: 2, py: 1 }}>
+        {menuItems.map((item) => (
+          <React.Fragment key={item.id}>
+            {item.expandable ? (
+              <>
+                <ListItem disablePadding sx={{ display: 'block', mb: 1 }}>
+                  <ListItemButton
+                    onClick={() => handleToggleExpand(item.id)}
+                    sx={{
+                      borderRadius: 3,
+                      mb: 0.5,
+                      bgcolor: isParentActive(item.path) ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                      '&:hover': {
+                        bgcolor: alpha(theme.palette.primary.main, 0.08),
+                      }
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 40,
+                        color: isParentActive(item.path) ? 'primary.main' : 'text.secondary'
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{
+                        fontWeight: isParentActive(item.path) ? 600 : 400,
+                        color: isParentActive(item.path) ? 'primary.main' : 'text.primary'
+                      }}
+                    />
+                    {expandedItems[item.id] ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </ListItemButton>
+
+                  <Collapse in={expandedItems[item.id]} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding>
+                      {item.subItems.map((subItem) => (
+                        <ListItemButton
+                          key={subItem.id}
+                          component={Link}
+                          to={`/admin${subItem.path}`}
+                          sx={{
+                            pl: 4,
+                            py: 0.75,
+                            borderRadius: 3,
+                            mb: 0.5,
+                            bgcolor: isActive(subItem.path) ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                            '&:hover': {
+                              bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            }
+                          }}
+                        >
+                          <ListItemText
+                            primary={subItem.label}
+                            primaryTypographyProps={{
+                              fontSize: 14,
+                              fontWeight: isActive(subItem.path) ? 600 : 400,
+                              color: isActive(subItem.path) ? 'primary.main' : 'text.primary'
+                            }}
+                          />
+                        </ListItemButton>
+                      ))}
+                    </List>
+                  </Collapse>
+                </ListItem>
+              </>
+            ) : (
+              <ListItem disablePadding sx={{ display: 'block', mb: 1 }}>
+                <ListItemButton
+                  component={Link}
+                  to={`/admin${item.path}`}
+                  sx={{
+                    borderRadius: 3,
+                    bgcolor: isActive(item.path) ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                    '&:hover': {
+                      bgcolor: alpha(theme.palette.primary.main, 0.08),
+                    }
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 40,
+                      color: isActive(item.path) ? 'primary.main' : 'text.secondary'
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{
+                      fontWeight: isActive(item.path) ? 600 : 400,
+                      color: isActive(item.path) ? 'primary.main' : 'text.primary'
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            )}
+          </React.Fragment>
+        ))}
+      </List>
+
+      <Box sx={{ flexGrow: 1 }} />
+
+      {/* Footer */}
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography variant="caption" color="text.secondary">
+          Testify Admin Dashboard
+        </Typography>
+        <Typography variant="caption" display="block" color="text.secondary">
+          &copy; {new Date().getFullYear()} All Rights Reserved
+        </Typography>
+      </Box>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile overlay when sidebar is open */}
+      {open && (
+        <Box
+          onClick={onClose}
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 1199,
+            display: { xs: 'block', md: 'none' },
+            backdropFilter: 'blur(4px)'
+          }}
+        />
+      )}
+
+      {/* Sidebar drawer */}
+      <Drawer
+        variant={useMediaQuery(theme.breakpoints.up('md')) ? "persistent" : "temporary"}
+        anchor="left"
+        open={open}
+        onClose={onClose}
+        ModalProps={{
+          keepMounted: true, // Better mobile performance
+        }}
+        sx={{
+          width: { xs: '85%', sm: drawerWidth },
+          flexShrink: 0,
+          '& .MuiDrawer-paper': {
+            width: { xs: '85%', sm: drawerWidth },
+            boxSizing: 'border-box',
+            border: 'none',
+            boxShadow: '0 0 20px rgba(0, 0, 0, 0.05)',
+            background: theme.palette.background.paper,
+            backgroundImage: `linear-gradient(to bottom, ${alpha(theme.palette.background.paper, 0.8)}, ${alpha(theme.palette.background.paper, 1)})`,
+            backdropFilter: 'blur(8px)',
+            overflowX: 'hidden'
+          },
+        }}
+      >
+        {sidebarContent}
+      </Drawer>
+    </>
+  );
+};
+
+export default Sidebar;
