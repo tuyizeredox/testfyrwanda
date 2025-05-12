@@ -23,8 +23,31 @@
       "dest": "server/server.js"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "client/dist/assets/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "client/dist/favicon.ico"
+    },
+    {
+      "src": "/favicon.svg",
+      "dest": "client/dist/favicon.svg"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "client/dist/manifest.json"
+    },
+    {
+      "src": "/logo192.svg",
+      "dest": "client/dist/logo192.svg"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
-      "dest": "client/dist/$1"
+      "dest": "client/dist/index.html"
     }
   ]
 }
