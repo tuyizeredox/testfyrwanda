@@ -30,7 +30,6 @@
     "start": "vite",
     "dev": "vite",
     "build": "vite build",
-    "build:vercel": "node build-for-vercel.js",
     "preview": "vite preview"
   },
   "eslintConfig": {

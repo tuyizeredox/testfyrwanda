@@ -24,7 +24,7 @@ This guide explains how to deploy the Testify frontend to Vercel with proper SPA
 3. Build your frontend locally to test:
    ```
    cd client
-   npm run build:vercel
+   npm run build
    ```
 
 ### 2. Deploy to Vercel
@@ -36,7 +36,7 @@ This guide explains how to deploy the Testify frontend to Vercel with proper SPA
 3. Configure the project:
    - **Framework Preset**: Vite
    - **Root Directory**: `client`
-   - **Build Command**: `npm run build:vercel`
+   - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
    - **Install Command**: `npm install`
 
