@@ -10,13 +10,24 @@ dotenv.config();
 // Initialize Express app
 const app = express();
 
-// Middleware
+// Import custom CORS middleware
+const corsMiddleware = require('./middleware/cors');
+
+// Apply CORS middleware
+app.use(corsMiddleware);
+
+// Standard CORS middleware as fallback
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? process.env.FRONTEND_URL || 'https://nationalscore.vercel.app'
+    ? ['https://testfyrwanda.vercel.app', 'https://nationalscore.vercel.app', process.env.FRONTEND_URL].filter(Boolean)
     : 'http://localhost:3000',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Pre-flight OPTIONS request handler
+app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -44,6 +55,15 @@ app.use('/api/profile', profileRoutes);
 // Health check endpoint for Vercel
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', environment: process.env.NODE_ENV });
+});
+
+// CORS test endpoint
+app.get('/api/cors-test', (req, res) => {
+  res.status(200).json({
+    message: 'CORS is working correctly!',
+    origin: req.headers.origin || 'No origin header',
+    headers: req.headers
+  });
 });
 
 // Connect to MongoDB
