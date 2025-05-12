@@ -27,6 +27,10 @@
       "dest": "/api/health.js"
     },
     {
+      "src": "/api/proxy",
+      "dest": "/api/proxy.js"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/server/api/index.js"
     },

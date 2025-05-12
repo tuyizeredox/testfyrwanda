@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
+import proxyApi from '../services/proxyApi';
 import LoadingScreen from '../components/common/LoadingScreen';
 
 export const AuthContext = createContext();
@@ -78,27 +79,48 @@ export const AuthProvider = ({ children }) => {
           token: response.data.token,
         };
       } catch (apiError) {
-        console.error('Regular API login failed, trying direct login:', apiError);
+        console.error('Regular API login failed, trying proxy API:', apiError);
 
-        // If regular API fails, try direct login
-        // Import the direct login function dynamically to avoid circular dependencies
-        const { directLogin } = await import('../services/directLogin');
+        try {
+          // Try using the proxy API
+          console.log('Attempting login with proxy API');
+          response = await proxyApi.post('/auth/login', {
+            email: userData.email,
+            password: userData.password,
+          });
 
-        // Try direct login
-        const directLoginData = await directLogin({
-          email: userData.email,
-          password: userData.password,
-        });
+          // Create user object from response
+          user = {
+            id: response.data._id,
+            email: response.data.email,
+            firstName: response.data.firstName,
+            lastName: response.data.lastName,
+            role: response.data.role,
+            token: response.data.token,
+          };
+        } catch (proxyError) {
+          console.error('Proxy API login failed, trying direct login:', proxyError);
 
-        // Create user object from direct login response
-        user = {
-          id: directLoginData._id,
-          email: directLoginData.email,
-          firstName: directLoginData.firstName,
-          lastName: directLoginData.lastName,
-          role: directLoginData.role,
-          token: directLoginData.token,
-        };
+          // If proxy API fails, try direct login
+          // Import the direct login function dynamically to avoid circular dependencies
+          const { directLogin } = await import('../services/directLogin');
+
+          // Try direct login
+          const directLoginData = await directLogin({
+            email: userData.email,
+            password: userData.password,
+          });
+
+          // Create user object from direct login response
+          user = {
+            id: directLoginData._id,
+            email: directLoginData.email,
+            firstName: directLoginData.firstName,
+            lastName: directLoginData.lastName,
+            role: directLoginData.role,
+            token: directLoginData.token,
+          };
+        }
       }
 
       // Save user to localStorage
