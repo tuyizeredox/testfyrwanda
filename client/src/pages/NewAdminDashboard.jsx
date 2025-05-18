@@ -95,6 +95,8 @@ const NewAdminDashboard = () => {
               duration: theme.transitions.duration.enteringScreen,
             }),
           }),
+          position: 'relative',
+          zIndex: 1
         }}
       >
         {/* Header */}
@@ -103,15 +105,17 @@ const NewAdminDashboard = () => {
         {/* Page content */}
         <Box
           sx={{
-            p: { xs: 1.5, sm: 2.5, md: 4 },
-            pt: { xs: 2, sm: 3, md: 4 },
+            p: { xs: 1, sm: 1.5, md: 2, lg: 3 },
+            pt: { xs: 1.5, sm: 2, md: 3 },
             mt: { xs: 8, md: 9 },
             minHeight: 'calc(100vh - 70px)',
-            borderRadius: { xs: '12px 12px 0 0', md: '24px 24px 0 0' },
+            borderRadius: { xs: '8px 8px 0 0', md: '16px 16px 0 0' },
             backgroundColor: alpha(theme.palette.background.default, 0.8),
             backdropFilter: 'blur(10px)',
             boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.05)',
             overflowX: 'hidden',
+            maxWidth: '100%',
+            boxSizing: 'border-box'
           }}
         >
           <Routes>

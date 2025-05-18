@@ -21,7 +21,12 @@ const StatsCard = ({
   trend = null,
   trendLabel = '',
   tooltip = '',
-  animation = true
+  animation = true,
+  titleFontSize,
+  valueFontSize,
+  iconSize,
+  height,
+  padding
 }) => {
   const theme = useTheme();
 
@@ -51,10 +56,10 @@ const StatsCard = ({
   return (
     <Card
       sx={{
-        height: '100%',
+        height: height || '100%',
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: 0, // Remove rounded corners
+        borderRadius: { xs: 2, md: 3 },
         transition: 'all 0.3s ease',
         background: `linear-gradient(135deg, ${alpha(cardColor, 0.03)} 0%, ${alpha(cardColor, 0.06)} 100%)`,
         border: `1px solid ${alpha(cardColor, 0.1)}`,
@@ -76,7 +81,7 @@ const StatsCard = ({
         }
       }}
     >
-      <CardContent sx={{ p: 3 }}>
+      <CardContent sx={{ p: padding || { xs: 1.5, sm: 2, md: 3 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
@@ -84,7 +89,10 @@ const StatsCard = ({
                 variant="subtitle2"
                 color="text.secondary"
                 fontWeight="medium"
-                sx={{ mr: 1 }}
+                sx={{
+                  mr: 1,
+                  fontSize: titleFontSize || { xs: '0.75rem', sm: '0.875rem', md: '1rem' }
+                }}
               >
                 {title}
               </Typography>
@@ -102,7 +110,7 @@ const StatsCard = ({
                       }
                     }}
                   >
-                    <InfoIcon fontSize="small" sx={{ fontSize: '0.875rem' }} />
+                    <InfoIcon fontSize="small" sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }} />
                   </IconButton>
                 </Tooltip>
               )}
@@ -113,6 +121,7 @@ const StatsCard = ({
               fontWeight="bold"
               sx={{
                 color: theme.palette.text.primary,
+                fontSize: valueFontSize || { xs: '1.5rem', sm: '1.75rem', md: '2rem' },
                 animation: animation ? 'countUp 2s ease-out' : 'none',
                 '@keyframes countUp': {
                   '0%': {
@@ -124,6 +133,9 @@ const StatsCard = ({
                     transform: 'translateY(0)',
                   },
                 },
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
               }}
             >
               {value}
@@ -137,6 +149,8 @@ const StatsCard = ({
                   mt: 1,
                   color: getTrendColor(),
                   fontWeight: 'medium',
+                  flexWrap: 'wrap',
+                  gap: 0.5
                 }}
               >
                 <Typography
@@ -145,6 +159,7 @@ const StatsCard = ({
                     display: 'flex',
                     alignItems: 'center',
                     fontWeight: 'bold',
+                    fontSize: { xs: '0.65rem', sm: '0.7rem', md: '0.75rem' }
                   }}
                 >
                   {getTrendIcon()} {Math.abs(trend)}%
@@ -154,7 +169,10 @@ const StatsCard = ({
                   <Typography
                     variant="caption"
                     color="text.secondary"
-                    sx={{ ml: 1 }}
+                    sx={{
+                      ml: { xs: 0, sm: 0.5, md: 1 },
+                      fontSize: { xs: '0.65rem', sm: '0.7rem', md: '0.75rem' }
+                    }}
                   >
                     {trendLabel}
                   </Typography>
@@ -166,8 +184,8 @@ const StatsCard = ({
           <Avatar
             className="stats-icon"
             sx={{
-              width: 48,
-              height: 48,
+              width: iconSize?.width || iconSize || { xs: 40, sm: 44, md: 48 },
+              height: iconSize?.height || iconSize || { xs: 40, sm: 44, md: 48 },
               bgcolor: alpha(cardColor, 0.1),
               color: cardColor,
               transition: 'transform 0.3s ease',
