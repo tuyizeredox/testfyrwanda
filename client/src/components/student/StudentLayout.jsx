@@ -41,15 +41,19 @@ import {
   Assignment,
   EmojiEvents,
   History,
-  AccountCircle
+  AccountCircle,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
+import { useThemeMode } from '../../context/ThemeContext';
 
 const drawerWidth = 260;
 
 const StudentLayout = ({ children }) => {
   const theme = useTheme();
   const { user, logout } = useAuth();
+  const { mode, toggleMode } = useThemeMode();
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -97,8 +101,9 @@ const StudentLayout = ({ children }) => {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: '#f8f9fa', // Light background for the drawer
-      borderRight: '1px solid rgba(0, 0, 0, 0.08)' // Subtle border
+      background: mode === 'dark' ? alpha(theme.palette.background.paper, 0.9) : '#f8f9fa', // Adaptive background for the drawer
+      borderRight: `1px solid ${mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`, // Adaptive subtle border
+      transition: 'all 0.3s ease'
     }}>
       <Box
         sx={{
@@ -532,11 +537,14 @@ const StudentLayout = ({ children }) => {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-          backgroundColor: 'primary.main',
+          boxShadow: mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 15px rgba(0,0,0,0.15)',
+          background: mode === 'dark'
+            ? 'linear-gradient(135deg, #2c1a4d 0%, #3a2063 100%)'
+            : 'linear-gradient(135deg, #4a148c 0%, #7c43bd 100%)',
           color: 'white',
           borderRadius: 0, // Remove rounded corners
-          borderBottom: '1px solid rgba(255,255,255,0.1)', // Add subtle border
+          borderBottom: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)'}`, // Add subtle border
+          transition: 'all 0.3s ease'
         }}
       >
         <Toolbar sx={{ py: { xs: 1, md: 1.5 } }}>
@@ -585,6 +593,21 @@ const StudentLayout = ({ children }) => {
                 <Badge badgeContent={3} color="error">
                   <Notifications />
                 </Badge>
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`}>
+              <IconButton
+                size="large"
+                color="inherit"
+                onClick={toggleMode}
+                sx={{
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
             </Tooltip>
 
@@ -668,13 +691,25 @@ const StudentLayout = ({ children }) => {
           minHeight: '100vh',
           backgroundColor: 'background.default',
           pt: { xs: 8, md: 10 },
-          transition: theme.transitions.create(['width', 'margin'], {
+          transition: theme.transitions.create(['width', 'margin', 'background-color'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
           }),
           maxWidth: '100%',
           boxSizing: 'border-box',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          position: 'relative',
+          '&::before': mode === 'dark' ? {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '200px',
+            background: 'radial-gradient(circle at top right, rgba(74, 20, 140, 0.1), transparent 70%)',
+            pointerEvents: 'none',
+            zIndex: 0
+          } : {}
         }}
       >
         {children}

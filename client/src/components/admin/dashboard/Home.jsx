@@ -24,6 +24,7 @@ import {
   ListItemIcon,
   ListItemText
 } from '@mui/material';
+import { useThemeMode } from '../../../context/ThemeContext';
 import {
   People as PeopleIcon,
   Assignment as AssignmentIcon,
@@ -55,6 +56,7 @@ const Home = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { mode } = useThemeMode();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -485,11 +487,16 @@ const Home = () => {
           mb: { xs: 3, sm: 4 },
           p: { xs: 2, sm: 3 },
           borderRadius: { xs: 2, sm: 3 },
-          background: `linear-gradient(120deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.secondary.main, 0.08)} 100%)`,
-          boxShadow: `inset 0 0 20px ${alpha(theme.palette.primary.main, 0.03)}`,
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+          background: mode === 'dark'
+            ? `linear-gradient(120deg, ${alpha(theme.palette.primary.main, 0.15)} 0%, ${alpha(theme.palette.secondary.main, 0.15)} 100%)`
+            : `linear-gradient(120deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.secondary.main, 0.08)} 100%)`,
+          boxShadow: mode === 'dark'
+            ? `inset 0 0 20px ${alpha(theme.palette.primary.main, 0.1)}`
+            : `inset 0 0 20px ${alpha(theme.palette.primary.main, 0.03)}`,
+          border: `1px solid ${alpha(theme.palette.primary.main, mode === 'dark' ? 0.2 : 0.1)}`,
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          transition: 'all 0.3s ease'
         }}
       >
         {/* Decorative elements */}

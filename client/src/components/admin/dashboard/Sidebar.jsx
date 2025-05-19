@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import { useThemeMode } from '../../../context/ThemeContext';
 
 // Sidebar width
 const drawerWidth = 280;
@@ -38,6 +39,7 @@ const Sidebar = ({ open, onClose }) => {
   const theme = useTheme();
   const location = useLocation();
   const { user } = useAuth();
+  const { mode } = useThemeMode();
 
   // State for expanded menu items
   const [expandedItems, setExpandedItems] = useState({
@@ -149,8 +151,11 @@ const Sidebar = ({ open, onClose }) => {
           justifyContent: 'space-between',
           p: 2,
           height: 70,
-          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)}, ${alpha(theme.palette.secondary.main, 0.05)})`,
-          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+          background: mode === 'dark'
+            ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.secondary.main, 0.15)})`
+            : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)}, ${alpha(theme.palette.secondary.main, 0.05)})`,
+          borderBottom: `1px solid ${alpha(theme.palette.divider, mode === 'dark' ? 0.2 : 0.1)}`,
+          transition: 'all 0.3s ease'
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -215,7 +220,10 @@ const Sidebar = ({ open, onClose }) => {
           flexDirection: 'column',
           alignItems: 'center',
           mb: 1,
-          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)}, ${alpha(theme.palette.secondary.main, 0.03)})`,
+          background: mode === 'dark'
+            ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)}, ${alpha(theme.palette.secondary.main, 0.1)})`
+            : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)}, ${alpha(theme.palette.secondary.main, 0.03)})`,
+          transition: 'all 0.3s ease'
         }}
       >
         <Avatar
@@ -415,11 +423,14 @@ const Sidebar = ({ open, onClose }) => {
             width: { xs: '85%', sm: drawerWidth },
             boxSizing: 'border-box',
             border: 'none',
-            boxShadow: '0 0 20px rgba(0, 0, 0, 0.05)',
+            boxShadow: mode === 'dark' ? '0 0 20px rgba(0, 0, 0, 0.2)' : '0 0 20px rgba(0, 0, 0, 0.05)',
             background: theme.palette.background.paper,
-            backgroundImage: `linear-gradient(to bottom, ${alpha(theme.palette.background.paper, 0.8)}, ${alpha(theme.palette.background.paper, 1)})`,
+            backgroundImage: mode === 'dark'
+              ? `linear-gradient(to bottom, ${alpha(theme.palette.background.paper, 0.9)}, ${alpha(theme.palette.background.paper, 1)})`
+              : `linear-gradient(to bottom, ${alpha(theme.palette.background.paper, 0.8)}, ${alpha(theme.palette.background.paper, 1)})`,
             backdropFilter: 'blur(8px)',
-            overflowX: 'hidden'
+            overflowX: 'hidden',
+            transition: 'all 0.3s ease'
           },
         }}
       >

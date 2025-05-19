@@ -30,6 +30,7 @@ import {
 import { styled } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import { useThemeMode } from '../../../context/ThemeContext';
 
 // Styled search component
 const Search = styled('div')(({ theme }) => ({
@@ -79,6 +80,7 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { mode, toggleMode } = useThemeMode();
 
   // State for menus
   const [anchorElUser, setAnchorElUser] = useState(null);
@@ -152,18 +154,18 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
       position="fixed"
       color="inherit"
       sx={{
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+        boxShadow: mode === 'dark' ? '0 4px 20px rgba(0, 0, 0, 0.2)' : '0 4px 20px rgba(0, 0, 0, 0.05)',
         backdropFilter: 'blur(10px)',
-        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-        backgroundColor: alpha(theme.palette.background.default, 0.85),
-        transition: theme.transitions.create(['margin', 'width'], {
+        borderBottom: `1px solid ${alpha(theme.palette.divider, mode === 'dark' ? 0.2 : 0.1)}`,
+        backgroundColor: alpha(theme.palette.background.default, mode === 'dark' ? 0.7 : 0.85),
+        transition: theme.transitions.create(['margin', 'width', 'background-color', 'box-shadow'], {
           easing: theme.transitions.easing.sharp,
           duration: theme.transitions.duration.leavingScreen,
         }),
         ...(sidebarOpen && {
           width: { md: `calc(100% - 280px)` },
           marginLeft: { md: `280px` },
-          transition: theme.transitions.create(['margin', 'width'], {
+          transition: theme.transitions.create(['margin', 'width', 'background-color', 'box-shadow'], {
             easing: theme.transitions.easing.easeOut,
             duration: theme.transitions.duration.enteringScreen,
           }),
@@ -239,17 +241,25 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
         <Search sx={{
           display: { xs: 'none', sm: 'block' },
           ml: { sm: 2, md: 4 },
-          backgroundColor: alpha(theme.palette.common.black, 0.04),
+          backgroundColor: mode === 'dark'
+            ? alpha(theme.palette.common.white, 0.06)
+            : alpha(theme.palette.common.black, 0.04),
           '&:hover': {
-            backgroundColor: alpha(theme.palette.common.black, 0.06),
+            backgroundColor: mode === 'dark'
+              ? alpha(theme.palette.common.white, 0.08)
+              : alpha(theme.palette.common.black, 0.06),
           },
           color: 'text.primary',
-          boxShadow: `0 2px 5px ${alpha(theme.palette.common.black, 0.05)}`,
+          boxShadow: mode === 'dark'
+            ? `0 2px 8px ${alpha(theme.palette.common.black, 0.2)}`
+            : `0 2px 5px ${alpha(theme.palette.common.black, 0.05)}`,
           borderRadius: 3,
           transition: 'all 0.3s ease',
           '&:focus-within': {
-            boxShadow: `0 4px 10px ${alpha(theme.palette.primary.main, 0.15)}`,
-            backgroundColor: alpha(theme.palette.common.black, 0.06),
+            boxShadow: `0 4px 10px ${alpha(theme.palette.primary.main, mode === 'dark' ? 0.25 : 0.15)}`,
+            backgroundColor: mode === 'dark'
+              ? alpha(theme.palette.common.white, 0.08)
+              : alpha(theme.palette.common.black, 0.06),
           },
           width: { sm: '180px', md: '240px', lg: '300px' }
         }}>
@@ -267,8 +277,9 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
         {/* Action buttons */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           {/* Theme toggle button - hidden on small mobile */}
-          <Tooltip title="Toggle theme" arrow>
+          <Tooltip title={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`} arrow>
             <IconButton
+              onClick={toggleMode}
               sx={{
                 mx: { xs: 0.5, sm: 1 },
                 display: { xs: 'none', sm: 'flex' },
@@ -279,10 +290,10 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
                 },
                 borderRadius: 2,
                 transition: 'all 0.3s ease',
-                color: theme.palette.mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main
+                color: mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main
               }}
             >
-              {theme.palette.mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
             </IconButton>
           </Tooltip>
 
@@ -475,8 +486,11 @@ const Header = ({ toggleSidebar, sidebarOpen }) => {
           >
             <Box sx={{
               p: 3,
-              backgroundColor: alpha(theme.palette.primary.main, 0.05),
-              borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+              backgroundColor: mode === 'dark'
+                ? alpha(theme.palette.primary.main, 0.15)
+                : alpha(theme.palette.primary.main, 0.05),
+              borderBottom: `1px solid ${alpha(theme.palette.divider, mode === 'dark' ? 0.2 : 0.1)}`,
+              transition: 'all 0.3s ease'
             }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <Avatar
