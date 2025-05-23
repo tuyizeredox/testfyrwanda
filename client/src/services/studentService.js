@@ -94,3 +94,17 @@ export const getDetailedResult = async (id) => {
     throw error;
   }
 };
+
+/**
+ * Get class leaderboard data
+ * @returns {Promise} - Promise with leaderboard data for students in the same class
+ */
+export const getClassLeaderboard = async () => {
+  try {
+    const response = await api.get('/student/leaderboard');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching class leaderboard:', error);
+    throw error;
+  }
+};

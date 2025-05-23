@@ -1,5 +1,6 @@
 const Exam = require('../models/Exam');
 const Result = require('../models/Result');
+const User = require('../models/User');
 
 // @desc    Get available exams for student
 // @route   GET /api/student/exams
@@ -192,9 +193,119 @@ const getCurrentExamSession = async (req, res) => {
   }
 };
 
+// @desc    Get class leaderboard
+// @route   GET /api/student/leaderboard
+// @access  Private/Student
+const getClassLeaderboard = async (req, res) => {
+  try {
+    // Get the current student's class
+    const currentStudent = await User.findById(req.user._id).select('class organization');
+
+    if (!currentStudent) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // If student doesn't have a class assigned, return an empty leaderboard
+    if (!currentStudent.class) {
+      return res.json({
+        leaderboard: [],
+        message: 'No class assigned to this student'
+      });
+    }
+
+    // Find all students in the same class
+    const classmates = await User.find({
+      role: 'student',
+      class: currentStudent.class,
+      organization: currentStudent.organization
+    }).select('_id firstName lastName');
+
+    if (!classmates || classmates.length === 0) {
+      return res.json({
+        leaderboard: [],
+        message: 'No other students found in your class'
+      });
+    }
+
+    // Get all completed results for these students
+    const classmateIds = classmates.map(student => student._id);
+
+    // Get all completed results
+    const results = await Result.find({
+      student: { $in: classmateIds },
+      isCompleted: true
+    })
+      .populate({
+        path: 'student',
+        select: 'firstName lastName email class organization',
+        options: { virtuals: true }
+      })
+      .populate('exam', 'title maxPossibleScore')
+      .select('totalScore maxPossibleScore startTime endTime exam');
+
+    // Group results by student
+    const studentResults = {};
+
+    results.forEach(result => {
+      const studentId = result.student._id.toString();
+
+      if (!studentResults[studentId]) {
+        studentResults[studentId] = {
+          id: studentId,
+          name: `${result.student.firstName} ${result.student.lastName}`,
+          studentClass: result.student.class,
+          organization: result.student.organization,
+          totalScore: 0,
+          totalPossible: 0,
+          examCount: 0,
+          isCurrentUser: studentId === req.user._id.toString()
+        };
+      }
+
+      // Add this result's score to the student's total
+      studentResults[studentId].totalScore += result.totalScore || 0;
+      studentResults[studentId].totalPossible += result.maxPossibleScore || 0;
+      studentResults[studentId].examCount += 1;
+    });
+
+    // Convert to array and calculate percentages
+    const leaderboard = Object.values(studentResults).map(student => {
+      const percentage = student.totalPossible > 0
+        ? Math.round((student.totalScore / student.totalPossible) * 100)
+        : 0;
+
+      return {
+        ...student,
+        percentage,
+        score: student.totalScore // For compatibility with the frontend
+      };
+    });
+
+    // Sort by percentage (highest first)
+    leaderboard.sort((a, b) => b.percentage - a.percentage);
+
+    // Add rank property
+    leaderboard.forEach((student, index) => {
+      student.rank = index + 1;
+    });
+
+    res.json({
+      leaderboard,
+      classInfo: {
+        name: currentStudent.class,
+        organization: currentStudent.organization
+      }
+    });
+  } catch (error) {
+    console.error('Get class leaderboard error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getAvailableExams,
   getStudentResults,
   getDetailedResult,
-  getCurrentExamSession
+  getCurrentExamSession,
+  getClassLeaderboard
 };

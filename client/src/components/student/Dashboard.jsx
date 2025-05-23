@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Container,
@@ -9,21 +9,17 @@ import {
   Button,
   Card,
   CardContent,
-  CardActions,
   CardMedia,
   Divider,
   Avatar,
   Chip,
   LinearProgress,
-  CircularProgress,
   Grow,
   Zoom,
-  Fade,
   Badge,
   IconButton,
   Tooltip,
   Skeleton,
-  Stack,
   useTheme,
   alpha
 } from '@mui/material';
@@ -31,32 +27,25 @@ import {
   School,
   AssignmentTurnedIn,
   EmojiEvents,
-  Timeline,
-  Notifications,
   ArrowForward,
   CheckCircle,
   AccessTime,
   PlayArrow,
   CalendarToday,
-  TrendingUp,
   Refresh,
   Star,
   StarBorder,
   StarHalf,
-  Whatshot,
-  Bolt,
   LocalFireDepartment,
-  Lightbulb,
   Celebration,
   WorkspacePremium,
-  Insights,
-  Psychology,
   AutoGraph,
   Leaderboard as LeaderboardIcon,
   Assessment
 } from '@mui/icons-material';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
+import { getClassLeaderboard } from '../../services/studentService';
 import StudentLayout from './StudentLayout';
 
 // Import gamification components
@@ -84,7 +73,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [achievements, setAchievements] = useState([]);
   const [leaderboardData, setLeaderboardData] = useState([]);
-  const [studyStreak, setStudyStreak] = useState(5); // Days in a row
+  const [studyStreak] = useState(5); // Days in a row
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -194,14 +183,34 @@ const Dashboard = () => {
           }
         ]);
 
-        // Mock leaderboard data
-        setLeaderboardData([
-          { id: 1, name: 'Alex Johnson', score: 1250, avatar: '' },
-          { id: 2, name: 'Maria Garcia', score: 980, avatar: '' },
-          { id: user?.id || 3, name: user?.firstName ? `${user.firstName} ${user.lastName}` : 'You', score: totalPoints, avatar: '', isCurrentUser: true },
-          { id: 4, name: 'James Wilson', score: 720, avatar: '' },
-          { id: 5, name: 'Sarah Brown', score: 650, avatar: '' }
-        ].sort((a, b) => b.score - a.score));
+        // Fetch real leaderboard data
+        try {
+          const leaderboardResponse = await getClassLeaderboard();
+          if (leaderboardResponse && leaderboardResponse.leaderboard) {
+            // Format the data for the leaderboard component
+            const formattedLeaderboard = leaderboardResponse.leaderboard.map(student => ({
+              id: student.id,
+              name: student.name,
+              score: student.percentage || student.score || 0,
+              avatar: '',
+              isCurrentUser: student.isCurrentUser,
+              studentClass: student.studentClass,
+              examCount: student.examCount
+            }));
+            setLeaderboardData(formattedLeaderboard);
+          } else {
+            // Fallback to mock data if no real data is available
+            setLeaderboardData([
+              { id: user?.id || 1, name: user?.firstName ? `${user.firstName} ${user.lastName}` : 'You', score: totalPoints, avatar: '', isCurrentUser: true }
+            ]);
+          }
+        } catch (leaderboardError) {
+          console.error('Error fetching leaderboard:', leaderboardError);
+          // Fallback to mock data if there's an error
+          setLeaderboardData([
+            { id: user?.id || 1, name: user?.firstName ? `${user.firstName} ${user.lastName}` : 'You', score: totalPoints, avatar: '', isCurrentUser: true }
+          ]);
+        }
 
         setLoading(false);
       } catch (error) {
@@ -241,39 +250,7 @@ const Dashboard = () => {
     }
   };
 
-  // Function to render rating stars based on score
-  const renderRatingStars = (score) => {
-    const maxStars = 5;
-    const starCount = (score / 100) * maxStars;
-    const fullStars = Math.floor(starCount);
-    const hasHalfStar = starCount - fullStars >= 0.5;
-
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-        {[...Array(maxStars)].map((_, index) => {
-          if (index < fullStars) {
-            return <Star key={index} sx={{ color: 'secondary.main' }} />;
-          } else if (index === fullStars && hasHalfStar) {
-            return <StarHalf key={index} sx={{ color: 'secondary.main' }} />;
-          } else {
-            return <StarBorder key={index} sx={{ color: 'secondary.main' }} />;
-          }
-        })}
-        <Typography variant="body2" sx={{ ml: 1, color: 'text.secondary' }}>
-          {score}%
-        </Typography>
-      </Box>
-    );
-  };
-
-  // Function to get a motivational message based on score
-  const getMotivationalMessage = (score) => {
-    if (score >= 90) return "Excellent work! Keep up the outstanding performance!";
-    if (score >= 80) return "Great job! You're doing very well!";
-    if (score >= 70) return "Good progress! Keep pushing yourself!";
-    if (score >= 60) return "You're on the right track. Keep studying!";
-    return "Keep practicing and you'll improve!";
-  };
+  // Helper functions for UI elements
 
   // Get current date
   const currentDate = new Date().toLocaleDateString('en-US', {
@@ -286,29 +263,29 @@ const Dashboard = () => {
   return (
     <StudentLayout>
       <Container maxWidth="lg" sx={{ mb: { xs: 4, sm: 6, md: 8 }, px: { xs: 1, sm: 2, md: 3 } }}>
-        {/* Welcome Section */}
+        {/* Hero Section */}
         <Grow in={true} timeout={800}>
           <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
-          {/* Welcome Card with Level Progress - Enhanced */}
+          {/* Hero Card with Level Progress - Enhanced */}
           <Grid item xs={12}>
             <Paper
-              elevation={3}
+              elevation={4}
               sx={{
-                p: { xs: 2, sm: 2.5, md: 3, lg: 4 },
+                p: { xs: 3, sm: 4, md: 5 },
                 display: 'flex',
                 flexDirection: { xs: 'column', md: 'row' },
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                borderRadius: { xs: 2, md: 3 },
-                background: 'linear-gradient(135deg, #4a148c 0%, #7c43bd 100%)',
+                borderRadius: { xs: 3, md: 4 },
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
                 color: 'white',
                 position: 'relative',
                 overflow: 'hidden',
-                gap: { xs: 2, md: 3 },
-                boxShadow: '0 10px 30px rgba(124, 67, 189, 0.3)',
+                gap: { xs: 3, md: 4 },
+                boxShadow: `0 15px 35px ${alpha(theme.palette.primary.main, 0.4)}`,
                 transition: 'all 0.3s ease',
                 '&:hover': {
-                  boxShadow: '0 15px 40px rgba(124, 67, 189, 0.4)',
+                  boxShadow: `0 20px 45px ${alpha(theme.palette.primary.main, 0.5)}`,
                   transform: 'translateY(-5px)'
                 }
               }}
@@ -347,157 +324,244 @@ const Dashboard = () => {
                 flexDirection: { xs: 'column', sm: 'row' },
                 mb: { xs: 2, md: 0 },
                 width: { xs: '100%', md: 'auto' },
-                gap: { xs: 2, sm: 3 }
+                gap: { xs: 3, sm: 4 }
               }}>
                 <Box sx={{ position: 'relative' }}>
                   <Avatar
                     sx={{
-                      bgcolor: 'secondary.main',
-                      width: { xs: 60, sm: 70, md: 80 },
-                      height: { xs: 60, sm: 70, md: 80 },
-                      boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
-                      border: '3px solid rgba(255,255,255,0.2)',
+                      bgcolor: theme.palette.secondary.main,
+                      width: { xs: 70, sm: 80, md: 90 },
+                      height: { xs: 70, sm: 80, md: 90 },
+                      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.3)',
+                      border: '4px solid rgba(255,255,255,0.2)',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        transform: 'scale(1.05)',
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)',
+                      }
                     }}
                   >
                     {user?.firstName?.charAt(0).toUpperCase() || 'S'}
                   </Avatar>
-                  <Tooltip title="Your current level">
+                  <Tooltip title="Your current level" arrow placement="top">
                     <Avatar
                       sx={{
                         position: 'absolute',
-                        bottom: -8,
-                        right: -8,
-                        width: { xs: 28, sm: 32, md: 36 },
-                        height: { xs: 28, sm: 32, md: 36 },
-                        bgcolor: 'secondary.main',
+                        bottom: -10,
+                        right: -10,
+                        width: { xs: 32, sm: 36, md: 40 },
+                        height: { xs: 32, sm: 36, md: 40 },
+                        bgcolor: theme.palette.secondary.main,
                         color: 'white',
-                        border: '2px solid white',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                        fontWeight: 'bold'
+                        border: '3px solid white',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                        fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
+                        fontWeight: 'bold',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'scale(1.1) rotate(10deg)',
+                        }
                       }}
                     >
                       {loading ? '...' : stats.level}
                     </Avatar>
                   </Tooltip>
                 </Box>
-                <Box sx={{ maxWidth: { xs: '100%', md: '300px' } }}>
+                <Box sx={{ maxWidth: { xs: '100%', md: '350px' } }}>
                   <Typography
                     variant="h3"
                     component="h1"
                     fontWeight="bold"
                     sx={{
-                      fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2.2rem', lg: '2.5rem' },
-                      textShadow: '0 2px 10px rgba(0,0,0,0.3)',
-                      lineHeight: 1.2
+                      fontSize: { xs: '1.7rem', sm: '2rem', md: '2.4rem', lg: '2.7rem' },
+                      textShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                      lineHeight: 1.2,
+                      mb: 1,
+                      background: 'linear-gradient(90deg, #ffffff, #e0e0e0)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      letterSpacing: '0.5px'
                     }}
                   >
-                    Welcome, {user?.firstName || 'Student'}!
+                    Welcome back, {user?.firstName || 'Student'}!
                   </Typography>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: 'rgba(255,255,255,0.8)',
+                      mb: 2,
+                      fontSize: { xs: '0.9rem', sm: '1rem', md: '1.1rem' },
+                      maxWidth: '90%'
+                    }}
+                  >
+                    Track your progress, take exams, and improve your scores. Your learning journey continues!
+                  </Typography>
+
                   <Box sx={{
                     display: 'flex',
                     alignItems: 'center',
                     mt: 1,
                     flexWrap: 'wrap',
-                    gap: 1
+                    gap: 1.5
                   }}>
                     <Chip
                       icon={<WorkspacePremium sx={{
                         color: 'white !important',
-                        fontSize: { xs: '0.875rem', sm: '1rem' }
+                        fontSize: { xs: '1rem', sm: '1.1rem' }
                       }} />}
                       label={`${loading ? '...' : stats.totalPoints} XP`}
                       sx={{
-                        bgcolor: 'rgba(255,255,255,0.2)',
+                        bgcolor: alpha(theme.palette.secondary.main, 0.3),
                         color: 'white',
-                        borderRadius: { xs: 1, md: 2 },
-                        height: { xs: 24, sm: 32 },
+                        borderRadius: 6,
+                        height: { xs: 32, sm: 36 },
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          bgcolor: alpha(theme.palette.secondary.main, 0.4),
+                          transform: 'translateY(-2px)'
+                        },
                         '& .MuiChip-label': {
-                          fontWeight: 'medium',
-                          fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' },
-                          px: { xs: 1, sm: 1.5 }
+                          fontWeight: 'bold',
+                          fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' },
+                          px: { xs: 1.5, sm: 2 }
                         },
                         '& .MuiChip-icon': {
-                          ml: { xs: 0.5, sm: 0.75 }
+                          ml: { xs: 0.75, sm: 1 }
                         }
                       }}
                     />
                     <Chip
                       icon={<LocalFireDepartment sx={{
                         color: 'white !important',
-                        fontSize: { xs: '0.875rem', sm: '1rem' }
+                        fontSize: { xs: '1rem', sm: '1.1rem' }
                       }} />}
                       label={`${loading ? '...' : stats.streak} Day Streak`}
                       sx={{
-                        bgcolor: 'rgba(255,255,255,0.2)',
+                        bgcolor: alpha('#ff9800', 0.3),
                         color: 'white',
-                        borderRadius: { xs: 1, md: 2 },
-                        height: { xs: 24, sm: 32 },
+                        borderRadius: 6,
+                        height: { xs: 32, sm: 36 },
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          bgcolor: alpha('#ff9800', 0.4),
+                          transform: 'translateY(-2px)'
+                        },
                         '& .MuiChip-label': {
-                          fontWeight: 'medium',
-                          fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' },
-                          px: { xs: 1, sm: 1.5 }
+                          fontWeight: 'bold',
+                          fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' },
+                          px: { xs: 1.5, sm: 2 }
                         },
                         '& .MuiChip-icon': {
-                          ml: { xs: 0.5, sm: 0.75 }
+                          ml: { xs: 0.75, sm: 1 }
                         }
                       }}
                     />
                     <Chip
                       icon={<CalendarToday sx={{
                         color: 'white !important',
-                        fontSize: { xs: '0.875rem', sm: '1rem' }
+                        fontSize: { xs: '1rem', sm: '1.1rem' }
                       }} />}
                       label={currentDate}
                       sx={{
-                        bgcolor: 'rgba(255,255,255,0.2)',
+                        bgcolor: alpha(theme.palette.info.main, 0.3),
                         color: 'white',
-                        borderRadius: { xs: 1, md: 2 },
-                        height: { xs: 24, sm: 32 },
+                        borderRadius: 6,
+                        height: { xs: 32, sm: 36 },
+                        border: '1px solid rgba(255,255,255,0.2)',
                         display: { xs: 'none', md: 'flex' },
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          bgcolor: alpha(theme.palette.info.main, 0.4),
+                          transform: 'translateY(-2px)'
+                        },
                         '& .MuiChip-label': {
-                          fontWeight: 'medium',
-                          fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' },
-                          px: { xs: 1, sm: 1.5 }
+                          fontWeight: 'bold',
+                          fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' },
+                          px: { xs: 1.5, sm: 2 }
                         },
                         '& .MuiChip-icon': {
-                          ml: { xs: 0.5, sm: 0.75 }
+                          ml: { xs: 0.75, sm: 1 }
                         }
                       }}
                     />
                   </Box>
 
                   {/* Level Progress Bar */}
-                  <Box sx={{ mt: 2, width: '100%', maxWidth: { xs: '100%', sm: 300 } }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Box sx={{ mt: 3, width: '100%', maxWidth: { xs: '100%', sm: 350 } }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                       <Typography
-                        variant="caption"
-                        fontWeight="medium"
-                        sx={{ fontSize: { xs: '0.65rem', sm: '0.7rem', md: '0.75rem' } }}
+                        variant="body2"
+                        fontWeight="bold"
+                        sx={{
+                          fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.85rem' },
+                          color: 'rgba(255,255,255,0.9)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5
+                        }}
                       >
-                        Level {loading ? '...' : stats.level}
+                        <WorkspacePremium fontSize="small" /> Level {loading ? '...' : stats.level}
                       </Typography>
                       <Typography
-                        variant="caption"
-                        fontWeight="medium"
-                        sx={{ fontSize: { xs: '0.65rem', sm: '0.7rem', md: '0.75rem' } }}
+                        variant="body2"
+                        fontWeight="bold"
+                        sx={{
+                          fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.85rem' },
+                          color: 'rgba(255,255,255,0.9)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5
+                        }}
                       >
                         {loading ? '...' : stats.xp}/{loading ? '...' : stats.nextLevelXp} XP
                       </Typography>
                     </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={loading ? 0 : (stats.xp / stats.nextLevelXp) * 100}
-                      sx={{
-                        height: { xs: 6, sm: 8 },
-                        borderRadius: { xs: 1, md: 2 },
-                        bgcolor: 'rgba(255,255,255,0.2)',
-                        '& .MuiLinearProgress-bar': {
-                          bgcolor: 'secondary.main',
-                          borderRadius: { xs: 1, md: 2 }
-                        }
-                      }}
-                    />
+                    <Box sx={{ position: 'relative' }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={loading ? 0 : (stats.xp / stats.nextLevelXp) * 100}
+                        sx={{
+                          height: { xs: 8, sm: 10 },
+                          borderRadius: 10,
+                          bgcolor: 'rgba(255,255,255,0.15)',
+                          '& .MuiLinearProgress-bar': {
+                            bgcolor: theme.palette.secondary.main,
+                            borderRadius: 10,
+                            backgroundImage: `linear-gradient(90deg, ${alpha(theme.palette.secondary.main, 0.8)}, ${theme.palette.secondary.main})`,
+                            boxShadow: `0 0 10px ${alpha(theme.palette.secondary.main, 0.5)}`,
+                            transition: 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                          }
+                        }}
+                      />
+                      {/* Animated dots on progress bar */}
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: `${loading ? 0 : Math.min(98, (stats.xp / stats.nextLevelXp) * 100)}%`,
+                          transform: 'translate(-50%, -50%)',
+                          width: { xs: 12, sm: 16 },
+                          height: { xs: 12, sm: 16 },
+                          borderRadius: '50%',
+                          bgcolor: 'white',
+                          boxShadow: `0 0 10px ${theme.palette.secondary.main}`,
+                          animation: 'pulse 1.5s infinite',
+                          '@keyframes pulse': {
+                            '0%': {
+                              boxShadow: `0 0 0 0 ${alpha(theme.palette.secondary.main, 0.7)}`
+                            },
+                            '70%': {
+                              boxShadow: `0 0 0 6px ${alpha(theme.palette.secondary.main, 0)}`
+                            },
+                            '100%': {
+                              boxShadow: `0 0 0 0 ${alpha(theme.palette.secondary.main, 0)}`
+                            }
+                          }
+                        }}
+                      />
+                    </Box>
                   </Box>
                 </Box>
               </Box>
@@ -1109,14 +1173,20 @@ const Dashboard = () => {
                 <Zoom in={true} style={{ transitionDelay: '1200ms' }}>
                   <Box>
                     <Leaderboard
-                      title="Top Students"
+                      title={leaderboardData.length > 0 ? "Class Leaderboard" : "No Classmates Found"}
+                      subtitle={leaderboardData.length > 0 ?
+                        leaderboardData[0]?.studentClass ?
+                          `${leaderboardData[0].studentClass} - Based on exam performance` :
+                          "Based on exam performance" :
+                        "Complete exams to appear on the leaderboard"}
                       data={leaderboardData}
                       maxItems={5}
-                      showViewAll={true}
+                      showViewAll={leaderboardData.length > 5}
                       onViewAll={() => {}}
                       highlightCurrentUser={true}
-                      currentUserId={user?.id || 3}
+                      currentUserId={user?._id}
                       type="score"
+                      emptyMessage="No students in your class have completed exams yet"
                     />
                   </Box>
                 </Zoom>
@@ -1127,27 +1197,68 @@ const Dashboard = () => {
               <Grid item xs={12} md={8}>
                 <Box
                   sx={{
-                    p: { xs: 2, sm: 2.5 },
-                    borderRadius: { xs: 2, md: 3 },
-                    background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.03)} 0%, ${alpha(theme.palette.success.main, 0.03)} 100%)`,
-                    border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
+                    p: { xs: 3, sm: 3.5 },
+                    borderRadius: { xs: 3, md: 4 },
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.05)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`,
+                    border: `1px solid ${alpha(theme.palette.info.main, 0.15)}`,
                     mb: { xs: 2, sm: 3 },
                     height: '100%',
                     position: 'relative',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    boxShadow: `0 10px 30px ${alpha(theme.palette.info.main, 0.1)}`
                   }}
                 >
-                  <Typography
-                    variant="h6"
-                    fontWeight="bold"
+                  <Box
                     sx={{
-                      mb: 2,
-                      fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' },
-                      color: theme.palette.info.main
+                      position: 'absolute',
+                      top: -50,
+                      right: -50,
+                      width: 200,
+                      height: 200,
+                      borderRadius: '50%',
+                      background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.1)} 0%, transparent 70%)`,
+                      zIndex: 0
                     }}
-                  >
-                    Recent Exams
-                  </Typography>
+                  />
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, position: 'relative', zIndex: 1 }}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+                        boxShadow: `0 4px 12px ${alpha(theme.palette.info.main, 0.3)}`,
+                        mr: 2
+                      }}
+                    >
+                      <Assessment sx={{ color: 'white' }} />
+                    </Box>
+                    <Typography
+                      variant="h6"
+                      fontWeight="bold"
+                      sx={{
+                        fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.35rem' },
+                        color: theme.palette.info.main,
+                        position: 'relative',
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          bottom: -5,
+                          left: 0,
+                          width: '40%',
+                          height: 2,
+                          backgroundColor: theme.palette.info.main,
+                          borderRadius: 1
+                        }
+                      }}
+                    >
+                      Recent Exams
+                    </Typography>
+                  </Box>
                 <Zoom in={true} style={{ transitionDelay: '1300ms' }}>
                   <Card
                     elevation={0}
@@ -1226,21 +1337,36 @@ const Dashboard = () => {
                           {recentExams.map((exam) => (
                             <Grid item xs={12} md={4} key={exam._id}>
                               <Card
-                                elevation={1}
+                                elevation={3}
                                 sx={{
                                   height: '100%',
                                   display: 'flex',
                                   flexDirection: 'column',
-                                  borderRadius: { xs: 2, md: 3 },
-                                  transition: 'all 0.3s ease',
+                                  borderRadius: { xs: 3, md: 4 },
+                                  transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                                   position: 'relative',
                                   overflow: 'hidden',
                                   border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.default, 0.9)} 100%)`,
+                                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.default, 0.95)} 100%)`,
                                   backdropFilter: 'blur(10px)',
+                                  boxShadow: `0 10px 20px ${alpha(
+                                    exam.status === 'completed'
+                                      ? theme.palette.success.main
+                                      : exam.status === 'in-progress'
+                                        ? theme.palette.warning.main
+                                        : theme.palette.primary.main,
+                                    0.1
+                                  )}`,
                                   '&:hover': {
-                                    transform: 'translateY(-8px)',
-                                    boxShadow: `0 12px 25px ${alpha(theme.palette.primary.main, 0.15)}`,
+                                    transform: 'translateY(-12px) scale(1.02)',
+                                    boxShadow: `0 20px 40px ${alpha(
+                                      exam.status === 'completed'
+                                        ? theme.palette.success.main
+                                        : exam.status === 'in-progress'
+                                          ? theme.palette.warning.main
+                                          : theme.palette.primary.main,
+                                      0.2
+                                    )}`,
                                   }
                                 }}
                               >
@@ -1250,105 +1376,180 @@ const Dashboard = () => {
                                     top: 0,
                                     left: 0,
                                     width: '100%',
-                                    height: '5px',
+                                    height: '8px',
                                     background: exam.status === 'completed'
                                       ? `linear-gradient(90deg, ${theme.palette.success.light}, ${theme.palette.success.main})`
                                       : exam.status === 'in-progress'
                                         ? `linear-gradient(90deg, ${theme.palette.warning.light}, ${theme.palette.warning.main})`
                                         : `linear-gradient(90deg, ${theme.palette.info.light}, ${theme.palette.info.main})`,
-                                    boxShadow: `0 1px 3px ${alpha(
+                                    boxShadow: `0 2px 6px ${alpha(
                                       exam.status === 'completed'
                                         ? theme.palette.success.main
                                         : exam.status === 'in-progress'
                                           ? theme.palette.warning.main
                                           : theme.palette.info.main,
-                                      0.3
-                                    )}`
+                                      0.4
+                                    )}`,
+                                    zIndex: 2
                                   }}
                                 />
 
-                                <CardMedia
-                                  component="img"
-                                  height="120"
-                                  image={`https://source.unsplash.com/random/300x200/?exam,education,${exam.title.split(' ')[0]}`}
-                                  alt={exam.title}
-                                  sx={{
-                                    objectFit: 'cover',
-                                    objectPosition: 'center',
-                                  }}
-                                />
+                                <Box sx={{ position: 'relative' }}>
+                                  <CardMedia
+                                    component="img"
+                                    height="140"
+                                    image={`https://source.unsplash.com/random/300x200/?exam,education,${exam.title.split(' ')[0]}`}
+                                    alt={exam.title}
+                                    sx={{
+                                      objectFit: 'cover',
+                                      objectPosition: 'center',
+                                      transition: 'all 0.5s ease',
+                                      filter: 'brightness(0.85)',
+                                      '&:hover': {
+                                        filter: 'brightness(1)',
+                                        transform: 'scale(1.05)'
+                                      }
+                                    }}
+                                  />
 
-                                <CardContent sx={{ flexGrow: 1, pt: 2 }}>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                                    <Typography
-                                      variant="h6"
-                                      component="h3"
-                                      fontWeight="bold"
-                                      sx={{
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: 'vertical',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        lineHeight: 1.2,
-                                        height: '2.4em',
-                                      }}
-                                    >
-                                      {exam.title}
-                                    </Typography>
-                                    <Chip
-                                      icon={getStatusIcon(exam.status)}
-                                      label={exam.status.replace('-', ' ')}
-                                      color={getStatusColor(exam.status)}
-                                      size="small"
-                                      sx={{
-                                        textTransform: 'capitalize',
-                                        ml: 1,
-                                        flexShrink: 0,
-                                      }}
-                                    />
-                                  </Box>
+                                  <Box
+                                    sx={{
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0,
+                                      width: '100%',
+                                      height: '100%',
+                                      background: `linear-gradient(to bottom, transparent 50%, ${alpha(theme.palette.background.paper, 0.9)} 100%)`,
+                                      zIndex: 1
+                                    }}
+                                  />
+
+                                  <Chip
+                                    icon={getStatusIcon(exam.status)}
+                                    label={exam.status.replace('-', ' ')}
+                                    color={getStatusColor(exam.status)}
+                                    size="small"
+                                    sx={{
+                                      position: 'absolute',
+                                      top: 12,
+                                      right: 12,
+                                      textTransform: 'capitalize',
+                                      fontWeight: 'bold',
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                      zIndex: 2,
+                                      '& .MuiChip-icon': {
+                                        color: 'inherit'
+                                      }
+                                    }}
+                                  />
+                                </Box>
+
+                                <CardContent sx={{ flexGrow: 1, pt: 3, pb: 2, px: 3 }}>
+                                  <Typography
+                                    variant="h6"
+                                    component="h3"
+                                    fontWeight="bold"
+                                    sx={{
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      lineHeight: 1.3,
+                                      height: '2.6em',
+                                      fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.25rem' },
+                                      color: theme.palette.text.primary,
+                                      mb: 1.5,
+                                      position: 'relative',
+                                      pl: 1,
+                                      '&::before': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        left: -4,
+                                        top: 0,
+                                        height: '100%',
+                                        width: 4,
+                                        borderRadius: 4,
+                                        backgroundColor: exam.status === 'completed'
+                                          ? theme.palette.success.main
+                                          : exam.status === 'in-progress'
+                                            ? theme.palette.warning.main
+                                            : theme.palette.primary.main,
+                                      }
+                                    }}
+                                  >
+                                    {exam.title}
+                                  </Typography>
 
                                   <Typography
                                     variant="body2"
                                     color="text.secondary"
                                     sx={{
-                                      mb: 2,
+                                      mb: 2.5,
                                       display: '-webkit-box',
-                                      WebkitLineClamp: 3,
+                                      WebkitLineClamp: 2,
                                       WebkitBoxOrient: 'vertical',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
-                                      height: '4.5em',
+                                      height: '3em',
+                                      fontSize: { xs: '0.85rem', sm: '0.9rem' },
+                                      lineHeight: 1.5,
+                                      opacity: 0.85
                                     }}
                                   >
                                     {exam.description || 'No description available for this exam.'}
                                   </Typography>
 
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                                  <Box sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 2,
+                                    flexWrap: 'wrap',
+                                    mb: 2
+                                  }}>
                                     <Chip
                                       icon={<AccessTime fontSize="small" />}
                                       label={`${exam.timeLimit} min`}
                                       size="small"
                                       variant="outlined"
-                                      color="primary"
+                                      color={
+                                        exam.status === 'completed'
+                                          ? 'success'
+                                          : exam.status === 'in-progress'
+                                            ? 'warning'
+                                            : 'primary'
+                                      }
+                                      sx={{
+                                        borderRadius: 6,
+                                        fontWeight: 'medium',
+                                        '& .MuiChip-icon': {
+                                          color: 'inherit'
+                                        }
+                                      }}
                                     />
 
-                                    {exam.status === 'in-progress' && (
+                                    {exam.questions && (
                                       <Chip
-                                        label="In Progress"
+                                        icon={<Assessment fontSize="small" />}
+                                        label={`${exam.questions.length} Questions`}
                                         size="small"
-                                        color="warning"
+                                        variant="outlined"
+                                        color="info"
+                                        sx={{
+                                          borderRadius: 6,
+                                          fontWeight: 'medium',
+                                          '& .MuiChip-icon': {
+                                            color: 'inherit'
+                                          }
+                                        }}
                                       />
                                     )}
                                   </Box>
                                 </CardContent>
 
-                                <Divider />
-
-                                <CardActions sx={{ p: 2 }}>
+                                <Box sx={{ p: 2, pt: 0, px: 3 }}>
                                   <Button
-                                    variant={exam.status === 'in-progress' ? 'contained' : 'outlined'}
+                                    variant="contained"
                                     color={
                                       exam.status === 'completed'
                                         ? 'success'
@@ -1363,28 +1564,38 @@ const Dashboard = () => {
                                     endIcon={<ArrowForward />}
                                     fullWidth
                                     sx={{
-                                      borderRadius: { xs: 1.5, md: 2 },
-                                      py: { xs: 1, md: 1.25 },
-                                      fontWeight: 'medium',
+                                      borderRadius: 8,
+                                      py: { xs: 1.25, md: 1.5 },
+                                      fontWeight: 'bold',
                                       position: 'relative',
                                       overflow: 'hidden',
-                                      boxShadow: exam.status === 'in-progress' ?
-                                        `0 4px 10px ${alpha(theme.palette.warning.main, 0.3)}` :
-                                        'none',
-                                      background: exam.status === 'in-progress' ?
-                                        `linear-gradient(135deg, ${theme.palette.warning.main}, ${alpha(theme.palette.warning.dark, 0.9)})` :
-                                        'transparent',
+                                      boxShadow: `0 8px 16px ${alpha(
+                                        exam.status === 'completed'
+                                          ? theme.palette.success.main
+                                          : exam.status === 'in-progress'
+                                            ? theme.palette.warning.main
+                                            : theme.palette.primary.main,
+                                        0.25
+                                      )}`,
+                                      background: exam.status === 'completed'
+                                        ? `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`
+                                        : exam.status === 'in-progress'
+                                          ? `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})`
+                                          : `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
                                       transition: 'all 0.3s ease',
+                                      textTransform: 'none',
+                                      fontSize: { xs: '0.9rem', sm: '1rem' },
+                                      letterSpacing: 0.5,
                                       '&:hover': {
-                                        transform: 'translateY(-2px)',
-                                        boxShadow: exam.status === 'in-progress' ?
-                                          `0 6px 15px ${alpha(theme.palette.warning.main, 0.4)}` :
-                                          `0 4px 10px ${alpha(
-                                            exam.status === 'completed' ?
-                                              theme.palette.success.main :
-                                              theme.palette.primary.main,
-                                            0.2
-                                          )}`,
+                                        transform: 'translateY(-3px)',
+                                        boxShadow: `0 12px 20px ${alpha(
+                                          exam.status === 'completed'
+                                            ? theme.palette.success.main
+                                            : exam.status === 'in-progress'
+                                              ? theme.palette.warning.main
+                                              : theme.palette.primary.main,
+                                          0.4
+                                        )}`,
                                       },
                                       '&::after': {
                                         content: '""',
@@ -1393,8 +1604,8 @@ const Dashboard = () => {
                                         left: '-100%',
                                         width: '100%',
                                         height: '100%',
-                                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-                                        transition: 'all 0.5s',
+                                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+                                        transition: 'all 0.8s ease',
                                       },
                                       '&:hover::after': {
                                         left: '100%',
@@ -1407,7 +1618,7 @@ const Dashboard = () => {
                                         ? 'View Results'
                                         : 'Start Exam'}
                                   </Button>
-                                </CardActions>
+                                </Box>
                               </Card>
                             </Grid>
                           ))}

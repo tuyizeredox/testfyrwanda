@@ -34,7 +34,8 @@ const registerStudent = async (req, res) => {
       password,
       role: 'student',
       class: studentClass || '',
-      organization: organization || ''
+      organization: organization || '',
+      createdBy: req.user._id // Set the admin who created this student
     });
 
     console.log('Student created successfully:', student._id);
@@ -82,12 +83,17 @@ const registerStudent = async (req, res) => {
   }
 };
 
-// @desc    Get all students
+// @desc    Get all students created by this admin
 // @route   GET /api/admin/students
 // @access  Private/Admin
 const getStudents = async (req, res) => {
   try {
-    const students = await User.find({ role: 'student' }).select('-password');
+    // Find students created by this admin
+    const students = await User.find({
+      role: 'student',
+      createdBy: req.user._id // Only return students created by this admin
+    }).select('-password');
+
     res.json(students);
   } catch (error) {
     console.error('Get students error:', error);
@@ -102,10 +108,12 @@ const getStudentById = async (req, res) => {
   try {
     const student = await User.findById(req.params.id).select('-password');
 
-    if (student && student.role === 'student') {
+    // Check if student exists, is a student, and was created by this admin
+    if (student && student.role === 'student' &&
+        (student.createdBy && student.createdBy.toString() === req.user._id.toString())) {
       res.json(student);
     } else {
-      res.status(404).json({ message: 'Student not found' });
+      res.status(404).json({ message: 'Student not found or not authorized to access this student' });
     }
   } catch (error) {
     console.error('Get student by ID error:', error);
@@ -122,7 +130,9 @@ const updateStudent = async (req, res) => {
 
     const student = await User.findById(req.params.id);
 
-    if (student && student.role === 'student') {
+    // Check if student exists, is a student, and was created by this admin
+    if (student && student.role === 'student' &&
+        (student.createdBy && student.createdBy.toString() === req.user._id.toString())) {
       // Update student fields
       if (firstName) student.firstName = firstName;
       if (lastName) student.lastName = lastName;
@@ -169,7 +179,9 @@ const deleteStudent = async (req, res) => {
   try {
     const student = await User.findById(req.params.id);
 
-    if (student && student.role === 'student') {
+    // Check if student exists, is a student, and was created by this admin
+    if (student && student.role === 'student' &&
+        (student.createdBy && student.createdBy.toString() === req.user._id.toString())) {
       const studentName = `${student.firstName} ${student.lastName}`;
       await student.deleteOne();
 
@@ -265,14 +277,23 @@ const getExamResults = async (req, res) => {
   }
 };
 
-// @desc    Get overall leaderboard across all exams
+// @desc    Get overall leaderboard for students created by this admin
 // @route   GET /api/admin/leaderboard
 // @access  Private/Admin
 const getOverallLeaderboard = async (req, res) => {
   try {
-    // Get all completed results
+    // Get students created by this admin
+    const students = await User.find({
+      role: 'student',
+      createdBy: req.user._id
+    }).select('_id');
+
+    const studentIds = students.map(student => student._id);
+
+    // Get all completed results for students created by this admin
     const results = await Result.find({
-      isCompleted: true
+      isCompleted: true,
+      student: { $in: studentIds }
     })
       .populate({
         path: 'student',
@@ -529,25 +550,32 @@ const exportExamResults = async (req, res) => {
   }
 };
 
-// @desc    Get dashboard statistics
+// @desc    Get dashboard statistics for this admin
 // @route   GET /api/admin/dashboard-stats
 // @access  Private/Admin
 const getDashboardStats = async (req, res) => {
   try {
-    // Get count of students
-    const studentCount = await User.countDocuments({ role: 'student' });
-
-    // Get count of exams
-    const examCount = await Exam.countDocuments();
-
-    // Get count of upcoming exams (scheduled in the future)
-    const upcomingExams = await Exam.countDocuments({
-      scheduledFor: { $gt: new Date() },
-      status: 'scheduled'
+    // Get count of students created by this admin
+    const studentCount = await User.countDocuments({
+      role: 'student',
+      createdBy: req.user._id
     });
 
-    // Get count of active exams (not locked)
-    const activeExams = await Exam.countDocuments({ isLocked: false });
+    // Get count of exams created by this admin
+    const examCount = await Exam.countDocuments({ createdBy: req.user._id });
+
+    // Get count of upcoming exams created by this admin (scheduled in the future)
+    const upcomingExams = await Exam.countDocuments({
+      scheduledFor: { $gt: new Date() },
+      status: 'scheduled',
+      createdBy: req.user._id
+    });
+
+    // Get count of active exams created by this admin (not locked)
+    const activeExams = await Exam.countDocuments({
+      isLocked: false,
+      createdBy: req.user._id
+    });
 
     // Get count of unresolved security alerts
     const securityAlerts = await SecurityAlert.countDocuments({ status: 'unresolved' });
@@ -617,13 +645,13 @@ const getExamById = async (req, res) => {
   }
 };
 
-// @desc    Get all exams
+// @desc    Get all exams created by this admin
 // @route   GET /api/admin/exams
 // @access  Private/Admin
 const getAllExams = async (req, res) => {
   try {
-    // Get all exams with populated creator
-    const exams = await Exam.find({})
+    // Get all exams created by this admin with populated creator
+    const exams = await Exam.find({ createdBy: req.user._id })
       .populate('createdBy', 'firstName lastName')
       .sort({ createdAt: -1 });
 
@@ -667,15 +695,16 @@ const getAllExams = async (req, res) => {
   }
 };
 
-// @desc    Get all scheduled exams
+// @desc    Get all scheduled exams created by this admin
 // @route   GET /api/admin/scheduled-exams
 // @access  Private/Admin
 const getScheduledExams = async (req, res) => {
   try {
-    // Get all scheduled exams (with scheduledFor date in the future)
+    // Get all scheduled exams created by this admin (with scheduledFor date in the future)
     const scheduledExams = await Exam.find({
       scheduledFor: { $ne: null },
-      status: 'scheduled'
+      status: 'scheduled',
+      createdBy: req.user._id
     })
       .populate('createdBy', 'firstName lastName')
       .sort({ scheduledFor: 1 });
@@ -706,13 +735,13 @@ const getScheduledExams = async (req, res) => {
   }
 };
 
-// @desc    Get recent exams
+// @desc    Get recent exams created by this admin
 // @route   GET /api/admin/recent-exams
 // @access  Private/Admin
 const getRecentExams = async (req, res) => {
   try {
-    // Get 5 most recent exams
-    const recentExams = await Exam.find({})
+    // Get 5 most recent exams created by this admin
+    const recentExams = await Exam.find({ createdBy: req.user._id })
       .populate('createdBy', 'firstName lastName')
       .sort({ createdAt: -1 })
       .limit(5);
@@ -770,13 +799,16 @@ const getRecentExams = async (req, res) => {
   }
 };
 
-// @desc    Get recent students
+// @desc    Get recent students created by this admin
 // @route   GET /api/admin/recent-students
 // @access  Private/Admin
 const getRecentStudents = async (req, res) => {
   try {
-    // Get 5 most recently registered students
-    const recentStudents = await User.find({ role: 'student' })
+    // Get 5 most recently registered students created by this admin
+    const recentStudents = await User.find({
+      role: 'student',
+      createdBy: req.user._id
+    })
       .select('-password')
       .sort({ createdAt: -1 })
       .limit(5);
@@ -1510,13 +1542,20 @@ const updateScheduledExam = async (req, res) => {
   }
 };
 
-// @desc    Get all exam results
+// @desc    Get all exam results for exams created by this admin
 // @route   GET /api/admin/results
 // @access  Private/Admin
 const getAllResults = async (req, res) => {
   try {
-    // Get all results with populated student and exam
-    const results = await Result.find({ isCompleted: true })
+    // Get all exams created by this admin
+    const exams = await Exam.find({ createdBy: req.user._id }).select('_id');
+    const examIds = exams.map(exam => exam._id);
+
+    // Get all results for exams created by this admin
+    const results = await Result.find({
+      isCompleted: true,
+      exam: { $in: examIds }
+    })
       .populate('student', 'firstName lastName fullName email')
       .populate('exam', 'title')
       .sort({ endTime: -1 });

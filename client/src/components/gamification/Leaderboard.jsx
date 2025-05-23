@@ -23,13 +23,15 @@ import {
 // Gamified leaderboard component
 const Leaderboard = ({
   title = 'Leaderboard',
+  subtitle = '',
   data = [],
   maxItems = 5,
   showViewAll = true,
   onViewAll,
   highlightCurrentUser = true,
   currentUserId = null,
-  type = 'score' // 'score' or 'progress'
+  type = 'score', // 'score' or 'progress'
+  emptyMessage = 'No data available'
 }) => {
   const theme = useTheme();
 
@@ -96,9 +98,16 @@ const Leaderboard = ({
               fontSize: 24
             }}
           />
-          <Typography variant="h6" fontWeight="bold" color="text.primary">
-            {title}
-          </Typography>
+          <Box>
+            <Typography variant="h6" fontWeight="bold" color="text.primary">
+              {title}
+            </Typography>
+            {subtitle && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                {subtitle}
+              </Typography>
+            )}
+          </Box>
         </Box>
 
         {type === 'score' ? (
@@ -127,7 +136,7 @@ const Leaderboard = ({
       </Box>
 
       <List sx={{ p: 0 }}>
-        {displayData.map((item, index) => {
+        {displayData.length > 0 ? displayData.map((item, index) => {
           const isCurrentUser = highlightCurrentUser && item.id === currentUserId;
           const medalColor = getMedalColor(index);
 
@@ -254,7 +263,25 @@ const Leaderboard = ({
               )}
             </React.Fragment>
           );
-        })}
+        }) : (
+          <ListItem sx={{ py: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Box
+              component="img"
+              src="https://img.freepik.com/free-vector/no-data-concept-illustration_114360-536.jpg"
+              alt="No data"
+              sx={{
+                width: '100%',
+                maxWidth: 120,
+                height: 'auto',
+                mb: 2,
+                opacity: 0.7
+              }}
+            />
+            <Typography variant="body2" color="text.secondary" align="center">
+              {emptyMessage}
+            </Typography>
+          </ListItem>
+        )}
       </List>
 
       {showViewAll && data.length > maxItems && (
