@@ -2014,7 +2014,9 @@ function App() {
             left: 0,
             width: '100%',
             height: '100%',
-            background: 'linear-gradient(to bottom, rgba(248, 249, 250, 0.95), rgba(248, 249, 250, 0.85))',
+            background: mode === 'dark'
+              ? 'linear-gradient(to bottom, rgba(18, 18, 18, 0.97), rgba(18, 18, 18, 0.92))'
+              : 'linear-gradient(to bottom, rgba(248, 249, 250, 0.95), rgba(248, 249, 250, 0.85))',
             zIndex: 1,
           }
         }}>
@@ -2057,10 +2059,13 @@ function App() {
               gutterBottom
               sx={{
                 fontSize: { xs: '2.2rem', sm: '2.5rem', md: '3rem' },
-                background: 'linear-gradient(90deg, #4a148c, #7c43bd)',
+                background: mode === 'dark'
+                  ? 'linear-gradient(90deg, #9c64ff, #7c43bd)'
+                  : 'linear-gradient(90deg, #4a148c, #7c43bd)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 mb: 2,
+                textShadow: mode === 'dark' ? '0 0 20px rgba(156, 100, 255, 0.4)' : 'none',
               }}
             >
               Voices from Rwanda's Educators
@@ -2073,6 +2078,7 @@ function App() {
                 mx: 'auto',
                 fontSize: { xs: '1rem', md: '1.1rem' },
                 lineHeight: 1.6,
+                color: mode === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'text.secondary',
               }}
             >
               Hear from teachers and students across Rwanda who are transforming education with Testify
@@ -2112,7 +2118,7 @@ function App() {
               <Grid item xs={12} md={4} key={index}>
                 <Zoom in={true} style={{ transitionDelay: `${index * 200}ms` }}>
                   <Card
-                    elevation={6}
+                    elevation={mode === 'dark' ? 8 : 6}
                     sx={{
                       height: '100%',
                       display: 'flex',
@@ -2121,9 +2127,13 @@ function App() {
                       overflow: 'hidden',
                       position: 'relative',
                       transition: 'all 0.3s ease',
+                      bgcolor: mode === 'dark' ? 'background.paper' : 'background.paper',
+                      border: mode === 'dark' ? `1px solid ${alpha(testimonial.color, 0.2)}` : 'none',
                       '&:hover': {
                         transform: 'translateY(-10px)',
-                        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
+                        boxShadow: mode === 'dark'
+                          ? `0 20px 40px ${alpha(testimonial.color, 0.15)}`
+                          : '0 20px 40px rgba(0, 0, 0, 0.1)',
                       },
                       '&::before': {
                         content: '""',
@@ -2142,9 +2152,10 @@ function App() {
                           position: 'absolute',
                           top: 20,
                           right: 20,
-                          opacity: 0.1,
+                          opacity: mode === 'dark' ? 0.15 : 0.1,
                           fontSize: '6rem',
                           color: testimonial.color,
+                          filter: mode === 'dark' ? 'drop-shadow(0 0 8px ' + alpha(testimonial.color, 0.3) + ')' : 'none',
                         }}
                       >
                         <FormatQuote />
@@ -2212,9 +2223,10 @@ function App() {
                           <Star
                             key={i}
                             sx={{
-                              color: i < testimonial.rating ? testimonial.color : 'rgba(0,0,0,0.1)',
+                              color: i < testimonial.rating ? testimonial.color : mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
                               fontSize: 22,
                               mr: 0.5,
+                              filter: mode === 'dark' && i < testimonial.rating ? `drop-shadow(0 0 3px ${alpha(testimonial.color, 0.5)})` : 'none',
                             }}
                           />
                         ))}
@@ -2258,7 +2270,9 @@ function App() {
         sx={{
           py: 14,
           position: 'relative',
-          background: 'linear-gradient(135deg, #f8f9fa 0%, #f0f2f5 100%)',
+          background: mode === 'dark'
+            ? 'linear-gradient(135deg, #1a1a1a 0%, #121212 100%)'
+            : 'linear-gradient(135deg, #f8f9fa 0%, #f0f2f5 100%)',
           overflow: 'hidden',
         }}
       >
@@ -2271,7 +2285,9 @@ function App() {
             width: '300px',
             height: '300px',
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(74, 20, 140, 0.03) 0%, transparent 70%)',
+            background: mode === 'dark'
+              ? 'radial-gradient(circle, rgba(156, 100, 255, 0.08) 0%, transparent 70%)'
+              : 'radial-gradient(circle, rgba(74, 20, 140, 0.03) 0%, transparent 70%)',
             zIndex: 0,
           }}
         />
@@ -2283,7 +2299,9 @@ function App() {
             width: '250px',
             height: '250px',
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(255, 109, 0, 0.03) 0%, transparent 70%)',
+            background: mode === 'dark'
+              ? 'radial-gradient(circle, rgba(255, 158, 64, 0.08) 0%, transparent 70%)'
+              : 'radial-gradient(circle, rgba(255, 109, 0, 0.03) 0%, transparent 70%)',
             zIndex: 0,
           }}
         />
@@ -2297,7 +2315,8 @@ function App() {
             width: '40px',
             height: '40px',
             borderRadius: '8px',
-            background: 'rgba(74, 20, 140, 0.05)',
+            background: mode === 'dark' ? 'rgba(156, 100, 255, 0.1)' : 'rgba(74, 20, 140, 0.05)',
+            boxShadow: mode === 'dark' ? '0 0 15px rgba(156, 100, 255, 0.2)' : 'none',
             transform: 'rotate(45deg)',
             animation: 'float 10s infinite ease-in-out',
             zIndex: 0,
@@ -2311,7 +2330,8 @@ function App() {
             width: '30px',
             height: '30px',
             borderRadius: '50%',
-            background: 'rgba(255, 109, 0, 0.05)',
+            background: mode === 'dark' ? 'rgba(255, 158, 64, 0.1)' : 'rgba(255, 109, 0, 0.05)',
+            boxShadow: mode === 'dark' ? '0 0 15px rgba(255, 158, 64, 0.2)' : 'none',
             animation: 'float 8s infinite ease-in-out 1s',
             zIndex: 0,
           }}
@@ -2340,10 +2360,13 @@ function App() {
               gutterBottom
               sx={{
                 fontSize: { xs: '2.2rem', sm: '2.5rem', md: '3rem' },
-                background: 'linear-gradient(90deg, #4a148c, #7c43bd)',
+                background: mode === 'dark'
+                  ? 'linear-gradient(90deg, #9c64ff, #7c43bd)'
+                  : 'linear-gradient(90deg, #4a148c, #7c43bd)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 mb: 2,
+                textShadow: mode === 'dark' ? '0 0 20px rgba(156, 100, 255, 0.4)' : 'none',
               }}
             >
               Frequently Asked Questions
@@ -2356,6 +2379,7 @@ function App() {
                 mx: 'auto',
                 fontSize: { xs: '1rem', md: '1.1rem' },
                 lineHeight: 1.6,
+                color: mode === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'text.secondary',
               }}
             >
               Find answers to common questions about Testify's features and capabilities
@@ -2430,19 +2454,26 @@ function App() {
             ].map((faq, index) => (
               <Zoom in={true} style={{ transitionDelay: `${index * 100}ms` }} key={index}>
                 <Accordion
-                  elevation={3}
+                  elevation={mode === 'dark' ? 4 : 3}
                   sx={{
                     mb: 3,
                     borderRadius: 3,
                     overflow: 'hidden',
                     '&:before': { display: 'none' },
-                    border: '1px solid rgba(0, 0, 0, 0.05)',
+                    border: mode === 'dark'
+                      ? `1px solid ${alpha(faq.color, 0.2)}`
+                      : '1px solid rgba(0, 0, 0, 0.05)',
                     transition: 'all 0.3s ease',
+                    bgcolor: mode === 'dark' ? 'background.paper' : 'background.paper',
                     '&:hover': {
-                      boxShadow: '0 8px 25px rgba(0, 0, 0, 0.08)',
+                      boxShadow: mode === 'dark'
+                        ? `0 8px 25px ${alpha(faq.color, 0.15)}`
+                        : '0 8px 25px rgba(0, 0, 0, 0.08)',
                     },
                     '&.Mui-expanded': {
-                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                      boxShadow: mode === 'dark'
+                        ? `0 10px 30px ${alpha(faq.color, 0.2)}`
+                        : '0 10px 30px rgba(0, 0, 0, 0.1)',
                       borderLeft: `4px solid ${faq.color}`,
                     }
                   }}
@@ -2451,13 +2482,16 @@ function App() {
                     expandIcon={
                       <Avatar
                         sx={{
-                          bgcolor: 'white',
+                          bgcolor: mode === 'dark' ? alpha(faq.color, 0.2) : 'white',
                           color: faq.color,
                           width: 28,
                           height: 28,
-                          boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                          boxShadow: mode === 'dark'
+                            ? `0 2px 8px ${alpha(faq.color, 0.3)}`
+                            : '0 2px 5px rgba(0,0,0,0.1)',
                           '& .MuiSvgIcon-root': {
                             fontSize: '1.2rem',
+                            filter: mode === 'dark' ? `drop-shadow(0 0 2px ${alpha(faq.color, 0.5)})` : 'none',
                           }
                         }}
                       >
@@ -2475,10 +2509,13 @@ function App() {
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <Avatar
                         sx={{
-                          bgcolor: `${faq.color}15`,
+                          bgcolor: mode === 'dark' ? alpha(faq.color, 0.25) : `${faq.color}15`,
                           color: faq.color,
                           mr: 2,
-                          boxShadow: `0 4px 8px ${faq.color}20`,
+                          boxShadow: mode === 'dark'
+                            ? `0 4px 12px ${alpha(faq.color, 0.4)}`
+                            : `0 4px 8px ${faq.color}20`,
+                          filter: mode === 'dark' ? `drop-shadow(0 0 3px ${alpha(faq.color, 0.3)})` : 'none',
                         }}
                       >
                         {faq.icon}
@@ -2487,8 +2524,9 @@ function App() {
                         variant="h6"
                         fontWeight="bold"
                         sx={{
-                          color: 'text.primary',
+                          color: mode === 'dark' ? 'text.primary' : 'text.primary',
                           fontSize: { xs: '1rem', md: '1.1rem' },
+                          textShadow: mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.3)' : 'none',
                         }}
                       >
                         {faq.question}
@@ -2498,7 +2536,7 @@ function App() {
                   <AccordionDetails sx={{ px: 3, pb: 3, pt: 0 }}>
                     <Typography
                       variant="body1"
-                      color="text.secondary"
+                      color={mode === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'text.secondary'}
                       sx={{
                         pl: 7,
                         position: 'relative',
@@ -2507,9 +2545,13 @@ function App() {
                           position: 'absolute',
                           top: 0,
                           left: 20,
-                          width: 2,
+                          width: mode === 'dark' ? 3 : 2,
                           height: '100%',
-                          background: `linear-gradient(to bottom, ${faq.color}, transparent)`,
+                          background: mode === 'dark'
+                            ? `linear-gradient(to bottom, ${faq.color}, ${alpha(faq.color, 0)})`
+                            : `linear-gradient(to bottom, ${faq.color}, transparent)`,
+                          boxShadow: mode === 'dark' ? `0 0 8px ${alpha(faq.color, 0.5)}` : 'none',
+                          borderRadius: '4px',
                         }
                       }}
                     >
@@ -2527,9 +2569,15 @@ function App() {
               mt: 8,
               p: 4,
               borderRadius: 4,
-              background: 'linear-gradient(135deg, rgba(74, 20, 140, 0.05) 0%, rgba(255, 109, 0, 0.05) 100%)',
-              border: '1px solid rgba(0, 0, 0, 0.05)',
-              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.05)',
+              background: mode === 'dark'
+                ? 'linear-gradient(135deg, rgba(156, 100, 255, 0.1) 0%, rgba(255, 158, 64, 0.1) 100%)'
+                : 'linear-gradient(135deg, rgba(74, 20, 140, 0.05) 0%, rgba(255, 109, 0, 0.05) 100%)',
+              border: mode === 'dark'
+                ? '1px solid rgba(156, 100, 255, 0.2)'
+                : '1px solid rgba(0, 0, 0, 0.05)',
+              boxShadow: mode === 'dark'
+                ? '0 10px 30px rgba(0, 0, 0, 0.2)'
+                : '0 10px 30px rgba(0, 0, 0, 0.05)',
             }}
           >
             <Typography variant="h5" fontWeight="bold" gutterBottom color="primary.main">
@@ -2550,7 +2598,16 @@ function App() {
                 py: 1.5,
                 borderRadius: 50,
                 fontWeight: 'bold',
-                boxShadow: '0 8px 20px rgba(74, 20, 140, 0.3)',
+                boxShadow: mode === 'dark'
+                  ? '0 8px 25px rgba(156, 100, 255, 0.4)'
+                  : '0 8px 20px rgba(74, 20, 140, 0.3)',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-3px)',
+                  boxShadow: mode === 'dark'
+                    ? '0 12px 30px rgba(156, 100, 255, 0.5)'
+                    : '0 12px 25px rgba(74, 20, 140, 0.4)',
+                },
               }}
             >
               Contact Our Team
