@@ -2041,16 +2041,24 @@ const ExamInterface = () => {
                           label={
                             currentQuestion.type === 'multiple-choice'
                               ? 'Multiple Choice'
-                              : currentQuestion.section === 'B'
-                                ? 'Short Answer'
-                                : 'Essay Question'
+                              : currentQuestion.type === 'true-false'
+                                ? 'True/False'
+                                : currentQuestion.type === 'fill-in-blank'
+                                  ? 'Fill in the Blank'
+                                  : currentQuestion.section === 'B'
+                                    ? 'Short Answer'
+                                    : 'Essay Question'
                           }
                           color={
                             currentQuestion.type === 'multiple-choice'
                               ? 'primary'
-                              : currentQuestion.section === 'B'
-                                ? 'info'
-                                : 'secondary'
+                              : currentQuestion.type === 'true-false'
+                                ? 'success'
+                                : currentQuestion.type === 'fill-in-blank'
+                                  ? 'warning'
+                                  : currentQuestion.section === 'B'
+                                    ? 'info'
+                                    : 'secondary'
                           }
                           size="small"
                         />
@@ -2106,7 +2114,15 @@ const ExamInterface = () => {
                       {/* Question metadata */}
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1 }}>
                         <Typography variant="caption" color="text.secondary">
-                          Type: {currentQuestion.type === 'multiple-choice' ? 'Multiple Choice' : 'Open-ended'}
+                          Type: {
+                            currentQuestion.type === 'multiple-choice'
+                              ? 'Multiple Choice'
+                              : currentQuestion.type === 'true-false'
+                                ? 'True/False'
+                                : currentQuestion.type === 'fill-in-blank'
+                                  ? 'Fill in the Blank'
+                                  : 'Open-ended'
+                          }
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           Points: {currentQuestion.points || 1}
@@ -2189,6 +2205,182 @@ const ExamInterface = () => {
                             </Box>
                           )}
                         </FormControl>
+                      ) : currentQuestion.type === 'true-false' ? (
+                        <FormControl component="fieldset" fullWidth>
+                          <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+                            <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                              <HelpOutline sx={{ mr: 1, fontSize: 20, color: 'success.main' }} />
+                              Indicate whether the statement is true or false:
+                            </Box>
+                          </Typography>
+
+                          <RadioGroup
+                            value={answers[currentQuestion._id]?.selectedOption || ''}
+                            onChange={(e) => handleAnswerChange(
+                              currentQuestion._id,
+                              e.target.value,
+                              'multiple-choice' // Use the same handler as multiple choice
+                            )}
+                          >
+                            {currentQuestion.options.map((option, index) => (
+                              <FormControlLabel
+                                key={index}
+                                value={option.text}
+                                control={
+                                  <Radio
+                                    disabled={answers[currentQuestion._id]?.answered}
+                                    sx={{ '&.Mui-checked': { color: 'success.main' } }}
+                                  />
+                                }
+                                label={
+                                  <Box component="span" sx={{
+                                    fontWeight: answers[currentQuestion._id]?.selectedOption === option.text ? 'bold' : 'normal',
+                                  }}>
+                                    <Typography component="span" fontWeight="bold" color="success.main">
+                                      {option.text}
+                                    </Typography>
+                                  </Box>
+                                }
+                                sx={{
+                                  mb: 2,
+                                  p: 2,
+                                  borderRadius: 2,
+                                  width: '100%',
+                                  transition: 'all 0.2s ease',
+                                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                  '&:hover': {
+                                    bgcolor: 'action.hover',
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                  },
+                                  ...(answers[currentQuestion._id]?.selectedOption === option.text && {
+                                    bgcolor: 'success.lighter',
+                                    border: '1px solid',
+                                    borderColor: 'success.main',
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+                                  })
+                                }}
+                              />
+                            ))}
+                          </RadioGroup>
+
+                          {/* Saved indicator for true/false */}
+                          {answers[currentQuestion._id]?.savedToServer && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, color: 'success.main' }}>
+                              <Check fontSize="small" sx={{ mr: 0.5 }} />
+                              <Typography variant="caption">
+                                Answer saved
+                              </Typography>
+                            </Box>
+                          )}
+                        </FormControl>
+                      ) : currentQuestion.type === 'fill-in-blank' ? (
+                        <Box>
+                          <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+                            <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                              <HelpOutline sx={{ mr: 1, fontSize: 20, color: 'warning.main' }} />
+                              Fill in the blank with the appropriate word or phrase:
+                            </Box>
+                          </Typography>
+
+                          {/* Display the question with highlighted blank */}
+                          <Box
+                            sx={{
+                              mb: 3,
+                              p: 2,
+                              bgcolor: alpha(theme.palette.warning.main, 0.05),
+                              border: '1px solid',
+                              borderColor: alpha(theme.palette.warning.main, 0.2),
+                              borderRadius: 1
+                            }}
+                          >
+                            <Typography variant="body1">
+                              {currentQuestion.text.split('_____').map((part, index, array) => (
+                                <React.Fragment key={index}>
+                                  {part}
+                                  {index < array.length - 1 && (
+                                    <Box
+                                      component="span"
+                                      sx={{
+                                        display: 'inline-block',
+                                        px: 1,
+                                        mx: 0.5,
+                                        borderBottom: '2px solid',
+                                        borderColor: 'warning.main',
+                                        fontWeight: 'bold',
+                                        color: 'warning.main',
+                                        minWidth: '80px',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      {answers[currentQuestion._id]?.textAnswer || 'BLANK'}
+                                    </Box>
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </Typography>
+                          </Box>
+
+                          <TextField
+                            fullWidth
+                            placeholder="Type your answer here..."
+                            value={answers[currentQuestion._id]?.textAnswer || ''}
+                            onChange={(e) => handleAnswerChange(
+                              currentQuestion._id,
+                              e.target.value,
+                              'open-ended'
+                            )}
+                            disabled={answers[currentQuestion._id]?.answered}
+                            variant="outlined"
+                            sx={{
+                              mt: 2,
+                              '& .MuiOutlinedInput-root': {
+                                '& fieldset': {
+                                  borderColor: 'warning.light',
+                                },
+                                '&:hover fieldset': {
+                                  borderColor: 'warning.main',
+                                },
+                                '&.Mui-focused fieldset': {
+                                  borderColor: 'warning.main',
+                                },
+                              },
+                            }}
+                          />
+
+                          {/* Save button for fill-in-blank */}
+                          {answers[currentQuestion._id]?.hasChanges && (
+                            <Button
+                              variant="contained"
+                              color="warning"
+                              size="medium"
+                              onClick={() => saveAnswerToServer(
+                                currentQuestion._id,
+                                answers[currentQuestion._id].textAnswer,
+                                'open-ended'
+                              )}
+                              startIcon={<Save />}
+                              sx={{
+                                mt: 2,
+                                width: '100%',
+                                py: 1
+                              }}
+                            >
+                              Save Answer
+                            </Button>
+                          )}
+
+                          {/* Saved indicator for fill-in-blank */}
+                          {answers[currentQuestion._id]?.savedToServer && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, color: 'success.main' }}>
+                              <Check fontSize="small" sx={{ mr: 0.5 }} />
+                              <Typography variant="caption">
+                                Answer saved
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
                       ) : (
                         <Box sx={{ mt: 2 }}>
                           <Typography variant="body1" color="text.secondary" gutterBottom>

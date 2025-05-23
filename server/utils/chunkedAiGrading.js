@@ -85,19 +85,27 @@ const extractKeyConcepts = async (modelAnswer, studentAnswer, questionText = '')
     if (isModelAnswerMissing) {
       // If model answer is missing, generate expected concepts based on the student answer and question
       prompt = `
-      You are an AI exam grader assistant for a computer science or IT exam with up-to-date knowledge of modern technology.
+      You are an expert AI exam grader for a computer science or IT exam with comprehensive knowledge of modern technology and educational assessment.
 
       Question: "${questionText || 'Unknown question about computer science or IT'}"
 
       Student Answer: "${studentAnswer}"
 
-      Based on the student's answer and the likely question topic, please identify 3-7 key technical concepts that would be expected in a correct answer to this question.
+      Based on the question and the student's answer, identify 4-8 key technical concepts, facts, and principles that would be expected in a complete and accurate answer to this question.
+
+      For each concept:
+      1. Be specific and precise (e.g., "TCP three-way handshake" rather than just "TCP")
+      2. Focus on factual information rather than vague ideas
+      3. Include technical terms where appropriate
+      4. Consider both breadth (covering all aspects of the question) and depth (important details)
+      5. Prioritize modern, current technology standards and practices
 
       Important guidelines:
       - Use current, up-to-date knowledge when identifying key concepts
       - Consider that there may be multiple valid technical approaches to answering questions
       - For example, both USB and PS/2 could be valid concepts for keyboard connections, with USB being more modern
       - Focus on concepts that demonstrate understanding rather than specific terminology
+      - Identify concepts that would be used by expert graders to assess student understanding
 
       Format your response as a JSON array of strings:
       ["concept1", "concept2", "concept3", ...]
@@ -107,17 +115,27 @@ const extractKeyConcepts = async (modelAnswer, studentAnswer, questionText = '')
     } else {
       // If model answer is available, extract concepts from it
       prompt = `
-      You are an AI exam grader assistant with up-to-date knowledge of modern technology. Your task is to extract the key concepts from this model answer.
+      You are an expert AI exam grader with comprehensive knowledge of modern technology and educational assessment. Your task is to extract the key concepts from this model answer.
 
       Model Answer: "${modelAnswer}"
 
-      Please identify 3-7 key concepts that are essential to this answer. These are the main points that a student should include.
+      Question Context: "${questionText || 'Unknown computer science/IT question'}"
+
+      Please identify 4-8 key concepts, facts, and principles that are essential to this answer. These are the specific points that would be used to assess a student's understanding.
+
+      For each concept:
+      1. Be specific and precise (e.g., "TCP three-way handshake" rather than just "TCP")
+      2. Focus on factual information rather than vague ideas
+      3. Include technical terms where appropriate
+      4. Consider both breadth (covering all aspects) and depth (important details)
+      5. Prioritize concepts that demonstrate mastery of the subject
 
       Important guidelines:
       - Use current, up-to-date knowledge when identifying key concepts
       - Consider that there may be multiple valid technical approaches to answering questions
       - Focus on concepts that demonstrate understanding rather than specific terminology
       - Be flexible with terminology if different terms can express the same concept
+      - Identify concepts that would be used by expert graders to assess student understanding
 
       Format your response as a JSON array of strings:
       ["concept1", "concept2", "concept3", ...]
@@ -216,7 +234,7 @@ const analyzeStudentAnswer = async (studentAnswer, keyConcepts, maxPoints, isMod
     if (isModelAnswerMissing) {
       // If model answer is missing, evaluate the technical merit of the student's answer in context of the question
       prompt = `
-      You are an AI exam grader assistant for a computer science or IT exam with up-to-date knowledge of modern technology. Your task is to evaluate the technical merit of a student's answer.
+      You are an expert AI exam grader for a computer science or IT exam with comprehensive knowledge of modern technology and educational assessment. Your task is to evaluate the technical merit of a student's answer with precision and fairness.
 
       Question: "${questionText || 'Unknown computer science/IT question'}"
 
@@ -226,27 +244,39 @@ const analyzeStudentAnswer = async (studentAnswer, keyConcepts, maxPoints, isMod
 
       Expected key concepts for this topic: ${JSON.stringify(keyConcepts)}
 
+      Grading Instructions:
+      1. Carefully analyze how well the student's answer addresses each expected key concept
+      2. Consider both explicit mentions and implicit understanding of concepts
+      3. Evaluate the technical accuracy of all statements made
+      4. Assess the completeness and depth of the explanation
+      5. Consider the clarity and organization of the response
+      6. Recognize alternative valid approaches or terminology
+
       Important guidelines:
       - Use current, up-to-date knowledge when evaluating answers
       - Consider that there may be multiple valid answers to technical questions
       - For example, both USB and PS/2 could be valid answers for keyboard connections, with USB being more modern
       - Accept answers that are technically correct even if they use different terminology
       - Be flexible with terminology if the student's answer demonstrates understanding of the concept
+      - Avoid penalizing for minor formatting or grammatical issues
+      - Reward depth of understanding over mere keyword matching
 
-      Please evaluate the answer based on:
-      1. Technical accuracy and relevance to the question
-      2. Appropriateness of the answer to the specific question asked
-      3. Use of appropriate technical terminology
-      4. Completeness of the explanation
+      Scoring Guidelines:
+      - 90-100% of points: Comprehensive answer that demonstrates mastery of all key concepts
+      - 80-89% of points: Strong answer with minor omissions or inaccuracies
+      - 70-79% of points: Good answer that covers most key concepts but lacks some depth
+      - 60-69% of points: Adequate answer with some key concepts but significant gaps
+      - 50-59% of points: Basic answer that shows limited understanding
+      - Below 50%: Insufficient answer with major gaps or inaccuracies
 
-      Even without a model answer to compare against, assign a fair score between 0 and ${maxPoints} based on how well the answer addresses the specific question.
-      If the answer contains relevant technical terms and directly addresses the question, it should receive a good score.
+      Assign a precise score between 0 and ${maxPoints} based on how well the answer addresses the specific question.
+      Be fair and consistent in your evaluation, providing the exact score the answer deserves.
 
       Format your response as a JSON object:
       {
         "conceptsPresent": ["concept1", "concept2", ...],
         "conceptsMissing": ["concept3", "concept4", ...],
-        "score": (number between 0 and ${maxPoints}),
+        "score": (number between 0 and ${maxPoints}, can include decimal points for precision),
         "technicalMerit": "brief assessment of technical accuracy and relevance to the question"
       }
 
@@ -255,7 +285,7 @@ const analyzeStudentAnswer = async (studentAnswer, keyConcepts, maxPoints, isMod
     } else {
       // If model answer is available, compare against key concepts in context of the question
       prompt = `
-      You are an AI exam grader assistant with up-to-date knowledge of modern technology. Your task is to analyze how well a student's answer addresses the question and covers the key concepts.
+      You are an expert AI exam grader with comprehensive knowledge of modern technology and educational assessment. Your task is to analyze how well a student's answer addresses the question and covers the key concepts with precision and fairness.
 
       Question: "${questionText || 'Unknown computer science/IT question'}"
 
@@ -263,24 +293,43 @@ const analyzeStudentAnswer = async (studentAnswer, keyConcepts, maxPoints, isMod
 
       Key Concepts: ${JSON.stringify(keyConcepts)}
 
+      Grading Instructions:
+      1. Carefully analyze how well the student's answer addresses each key concept
+      2. Consider both explicit mentions and implicit understanding of concepts
+      3. Evaluate the technical accuracy of all statements made
+      4. Assess the completeness and depth of the explanation
+      5. Consider the clarity and organization of the response
+      6. Recognize alternative valid approaches or terminology
+
       Important guidelines:
       - Use current, up-to-date knowledge when evaluating answers
       - Consider that there may be multiple valid answers to technical questions
       - For example, both USB and PS/2 could be valid answers for keyboard connections, with USB being more modern
       - Accept answers that are technically correct even if they use different terminology
       - Be flexible with terminology if the student's answer demonstrates understanding of the concept
+      - Avoid penalizing for minor formatting or grammatical issues
+      - Reward depth of understanding over mere keyword matching
+
+      Scoring Guidelines:
+      - 90-100% of points: Comprehensive answer that demonstrates mastery of all key concepts
+      - 80-89% of points: Strong answer with minor omissions or inaccuracies
+      - 70-79% of points: Good answer that covers most key concepts but lacks some depth
+      - 60-69% of points: Adequate answer with some key concepts but significant gaps
+      - 50-59% of points: Basic answer that shows limited understanding
+      - Below 50%: Insufficient answer with major gaps or inaccuracies
 
       For each key concept, determine if it is present in the student's answer.
-      Then assign a score between 0 and ${maxPoints} based on:
-      1. How many key concepts are covered
+      Then assign a precise score between 0 and ${maxPoints} based on:
+      1. How many key concepts are covered (both quantity and quality of coverage)
       2. How well the answer addresses the specific question asked
       3. Technical accuracy and clarity of the explanation
+      4. Depth of understanding demonstrated
 
       Format your response as a JSON object:
       {
         "conceptsPresent": ["concept1", "concept2", ...],
         "conceptsMissing": ["concept3", "concept4", ...],
-        "score": (number between 0 and ${maxPoints}),
+        "score": (number between 0 and ${maxPoints}, can include decimal points for precision),
         "relevance": "brief assessment of how well the answer addresses the question"
       }
 

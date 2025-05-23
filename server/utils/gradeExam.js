@@ -5,6 +5,45 @@ const { parseAnswerFile } = require('./fileParser');
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * Calculate the Levenshtein distance between two strings
+ * Used for fuzzy matching in fill-in-the-blank questions
+ * @param {string} a - First string
+ * @param {string} b - Second string
+ * @returns {number} - The edit distance between the strings
+ */
+function levenshteinDistance(a, b) {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix = [];
+
+  // Initialize the matrix
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Fill in the matrix
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
 // Use the chunked grading method by default to avoid rate limits
 const gradeEssay = chunkedGradeEssay;
 const Result = require('../models/Result');
@@ -106,25 +145,74 @@ const gradeExamWithAI = async (resultId) => {
     // Helper function to add delay between API calls
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Process each answer
+    // Group answers by question type for batch processing
+    const multipleChoiceAnswers = [];
+    const trueFalseAnswers = [];
+    const fillInBlankAnswers = [];
+    const openEndedAnswers = [];
+
+    // Organize answers by type
     for (let i = 0; i < result.answers.length; i++) {
       const answer = result.answers[i];
       const question = answer.question;
 
-      // Add a delay between grading attempts to avoid rate limits
-      if (i > 0) {
-        console.log(`Adding delay before grading next question to avoid rate limits...`);
-        await delay(3000); // 3 second delay between questions
+      if (!question) {
+        console.log(`Warning: Answer at index ${i} has no associated question. Skipping.`);
+        continue;
       }
 
-      // Handle multiple-choice questions
+      // Store the index for later reference
+      const answerWithIndex = { answer, question, index: i };
+
       if (question.type === 'multiple-choice') {
-        // Verify that multiple choice questions are graded correctly
+        multipleChoiceAnswers.push(answerWithIndex);
+      } else if (question.type === 'true-false') {
+        trueFalseAnswers.push(answerWithIndex);
+      } else if (question.type === 'fill-in-blank') {
+        fillInBlankAnswers.push(answerWithIndex);
+      } else if (question.type === 'open-ended') {
+        openEndedAnswers.push(answerWithIndex);
+      }
+    }
+
+    console.log(`Grouped answers by type: ${multipleChoiceAnswers.length} multiple choice, ${trueFalseAnswers.length} true/false, ${fillInBlankAnswers.length} fill-in-blank, ${openEndedAnswers.length} open-ended`);
+
+    // Process answers in batches by type for better performance
+    // Process multiple choice and true/false first (faster to grade)
+    const allAnswersToProcess = [
+      ...multipleChoiceAnswers,
+      ...trueFalseAnswers,
+      ...fillInBlankAnswers,
+      ...openEndedAnswers
+    ];
+
+    // Process each answer
+    for (let j = 0; j < allAnswersToProcess.length; j++) {
+      const { answer, question, index: i } = allAnswersToProcess[j];
+
+      // Add a delay between grading attempts to avoid rate limits
+      if (j > 0) {
+        // Add longer delays between different question types
+        const isNewQuestionType = j > 0 &&
+          allAnswersToProcess[j].question.type !== allAnswersToProcess[j-1].question.type;
+
+        if (isNewQuestionType) {
+          console.log(`Switching to new question type. Adding longer delay...`);
+          await delay(5000); // 5 second delay between question types
+        } else {
+          console.log(`Adding delay before grading next question to avoid rate limits...`);
+          await delay(2000); // 2 second delay between questions of same type
+        }
+      }
+
+      // Handle multiple-choice, true-false, and fill-in-blank questions
+      if (question.type === 'multiple-choice' || question.type === 'true-false') {
+        // Verify that multiple choice and true/false questions are graded correctly
         if (answer.selectedOption) {
           // Get the question number from the question text or use the index
           const questionNumber = extractQuestionNumber(question.text, i);
 
-          console.log(`Processing multiple choice question ${questionNumber}: "${question.text.substring(0, 50)}..."`);
+          console.log(`Processing ${question.type} question ${questionNumber}: "${question.text.substring(0, 50)}..."`);
 
           // Ensure all options have letter properties
           if (question.options && Array.isArray(question.options)) {
@@ -374,6 +462,120 @@ Only respond with the letter of the correct option (A, B, C, or D).
           console.log(`- Correct option: ${correctOptionText}`);
           console.log(`- Is correct: ${isCorrect}`);
         }
+        continue;
+      }
+
+      // Handle fill-in-the-blank questions
+      else if (question.type === 'fill-in-blank') {
+        // Get the question number from the question text or use the index
+        const questionNumber = extractQuestionNumber(question.text, i);
+
+        console.log(`Processing fill-in-blank question ${questionNumber}: "${question.text.substring(0, 50)}..."`);
+
+        if (answer.textAnswer && answer.textAnswer.trim()) {
+          const studentAnswer = answer.textAnswer.trim().toLowerCase();
+          const correctAnswer = question.correctAnswer ? question.correctAnswer.trim().toLowerCase() : '';
+
+          console.log(`  Student answer: "${studentAnswer}"`);
+          console.log(`  Correct answer: "${correctAnswer}"`);
+
+          // Check if the student's answer matches the correct answer
+          // We'll use a more flexible matching approach for fill-in-the-blank
+          const isExactMatch = studentAnswer === correctAnswer;
+          const isCloseMatch = correctAnswer && (
+            studentAnswer.includes(correctAnswer) ||
+            correctAnswer.includes(studentAnswer) ||
+            levenshteinDistance(studentAnswer, correctAnswer) <= 2 // Allow for small typos
+          );
+
+          if (isExactMatch) {
+            // Exact match - full points
+            answer.score = question.points || 1;
+            answer.feedback = "Correct! Your answer matches exactly.";
+            answer.isCorrect = true;
+            console.log(`  Answer is CORRECT (exact match)`);
+          } else if (isCloseMatch) {
+            // Close match - partial points
+            answer.score = (question.points || 1) * 0.8; // 80% of points
+            answer.feedback = "Mostly correct. Your answer is very close to the expected answer.";
+            answer.isCorrect = true;
+            console.log(`  Answer is PARTIALLY CORRECT (close match)`);
+          } else if (correctAnswer) {
+            // Incorrect answer
+            answer.score = 0;
+            answer.feedback = `Incorrect. The correct answer is: "${question.correctAnswer}"`;
+            answer.isCorrect = false;
+            console.log(`  Answer is INCORRECT`);
+          } else {
+            // No correct answer provided in the question, use AI to grade
+            try {
+              console.log(`  No predefined correct answer. Using AI to grade...`);
+
+              // Prepare prompt for AI grading
+              const prompt = `
+                Grade this fill-in-the-blank question answer:
+
+                Question: ${question.text}
+                Student's Answer: ${studentAnswer}
+
+                Evaluate if the student's answer is correct or partially correct.
+                Consider synonyms and alternative phrasings.
+
+                Respond with:
+                1. A score from 0 to ${question.points || 1} (can be decimal)
+                2. Brief feedback explaining the score
+                3. Whether the answer is correct (true/false)
+
+                Format your response as JSON:
+                {
+                  "score": number,
+                  "feedback": "string",
+                  "isCorrect": boolean
+                }
+              `;
+
+              // Use the chunked grading method to avoid rate limits
+              const aiResult = await chunkedGradeEssay(prompt);
+
+              try {
+                const parsedResult = JSON.parse(aiResult);
+                answer.score = parsedResult.score;
+                answer.feedback = parsedResult.feedback;
+                answer.isCorrect = parsedResult.isCorrect;
+
+                console.log(`  AI graded with score: ${answer.score}, isCorrect: ${answer.isCorrect}`);
+              } catch (parseError) {
+                console.error(`Error parsing AI result: ${parseError.message}`);
+                // Fallback to a default score
+                answer.score = 0;
+                answer.feedback = "Unable to grade answer automatically. Please contact your instructor.";
+                answer.isCorrect = false;
+              }
+            } catch (aiError) {
+              console.error(`Error using AI to grade: ${aiError.message}`);
+              // Fallback to a default score
+              answer.score = 0;
+              answer.feedback = "Unable to grade answer automatically. Please contact your instructor.";
+              answer.isCorrect = false;
+            }
+          }
+
+          // Store the correct answer for reference
+          answer.correctedAnswer = question.correctAnswer || "Graded by AI";
+
+          // Add to total score
+          totalScore += answer.score;
+
+          console.log(`Graded fill-in-blank answer for question ${question._id}, score: ${answer.score}/${question.points || 1}`);
+        } else {
+          // If the student didn't provide an answer, they get 0 points
+          console.log(`  Student did not provide an answer for question ${questionNumber}`);
+          answer.score = 0;
+          answer.feedback = "No answer provided.";
+          answer.correctedAnswer = question.correctAnswer || "";
+          answer.isCorrect = false;
+        }
+
         continue;
       }
 

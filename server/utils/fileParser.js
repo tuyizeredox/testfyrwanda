@@ -289,7 +289,7 @@ const extractQuestionsDirectly = async (text, answerData = { answers: {} }) => {
     sections: [
       {
         name: 'A',
-        description: 'Multiple Choice Questions',
+        description: 'Multiple Choice, True/False, and Fill-in-the-Blank Questions',
         questions: []
       },
       {
@@ -445,6 +445,18 @@ const extractQuestionsDirectly = async (text, answerData = { answers: {} }) => {
       }
     }
 
+    // Check for true/false questions
+    const trueFalseMatch = line.match(/^(\d+)\.?\s+(.+?)\s*\(True\/False\)/i) ||
+                          line.match(/^(\d+)\.?\s+(.+?)\s*\(T\/F\)/i) ||
+                          line.match(/^(\d+)\.?\s+(.+?)\s+(?:is|are)\s+(?:true|false)/i);
+
+    // Check for fill-in-the-blank questions
+    const fillInBlankMatch = line.match(/^(\d+)\.?\s+(.+?)\s*\[.*\](.*)/) ||
+                            line.match(/^(\d+)\.?\s+(.+?)\s*\_\_\_+(.*)/) ||
+                            line.match(/^(\d+)\.?\s+(.+?)\s*\(fill in(?: the blank)?\)(.*)/) ||
+                            line.match(/^(\d+)\.?\s+(.+?)\s*\(complete\)(.*)/) ||
+                            line.match(/^(\d+)\.?\s+(.+?)\s+with\s+the\s+(?:correct|appropriate|missing)\s+(?:word|term|phrase)/i);
+
     // Check for multiple choice questions (Section A)
     // First, try to match questions that have options on the same line
     const mcQuestionMatch = line.match(/^(\d+)\.?\s+(.+?)(?:\s+a\)|\s+\(a\)|\s+a\.|\s+A\.|\s+A\))/i);
@@ -452,8 +464,72 @@ const extractQuestionsDirectly = async (text, answerData = { answers: {} }) => {
     // Also look for numbered questions that might be multiple choice based on context
     const numberedQuestionMatch = line.match(/^(\d+)\.?\s+(.+)/);
 
+    // If we have a true/false question
+    if (trueFalseMatch && trueFalseMatch[2]) {
+      const questionNumber = parseInt(trueFalseMatch[1]);
+      const questionText = trueFalseMatch[2].trim();
+
+      // Create a new true/false question
+      currentQuestion = {
+        id: examStructure.sections.reduce((total, section) => total + section.questions.length, 0),
+        text: questionText,
+        type: 'true-false',
+        options: [
+          { text: 'True', letter: 'A', isCorrect: false },
+          { text: 'False', letter: 'B', isCorrect: false }
+        ],
+        correctAnswer: '',
+        points: 1,
+        section: 'A',
+        currentSection: 'A'
+      };
+
+      // Add the question to Section A
+      examStructure.sections[0].questions.push(currentQuestion);
+      console.log(`Added true/false question ${questionNumber}: "${questionText.substring(0, 50)}..."`);
+
+      // Reset state
+      currentQuestion = null;
+      inOptions = false;
+      continue;
+    }
+
+    // If we have a fill-in-the-blank question
+    else if (fillInBlankMatch && fillInBlankMatch[2]) {
+      const questionNumber = parseInt(fillInBlankMatch[1]);
+      let questionText = fillInBlankMatch[2].trim();
+
+      // If there's content after the blank, add it to the question text
+      if (fillInBlankMatch[3]) {
+        questionText += ' _____ ' + fillInBlankMatch[3].trim();
+      } else {
+        questionText += ' _____';
+      }
+
+      // Create a new fill-in-the-blank question
+      currentQuestion = {
+        id: examStructure.sections.reduce((total, section) => total + section.questions.length, 0),
+        text: questionText,
+        type: 'fill-in-blank',
+        options: [],
+        correctAnswer: '',
+        points: 1,
+        section: 'A',
+        currentSection: 'A'
+      };
+
+      // Add the question to Section A
+      examStructure.sections[0].questions.push(currentQuestion);
+      console.log(`Added fill-in-the-blank question ${questionNumber}: "${questionText.substring(0, 50)}..."`);
+
+      // Reset state
+      currentQuestion = null;
+      inOptions = false;
+      continue;
+    }
+
     // If we have a direct multiple choice match
-    if (mcQuestionMatch && mcQuestionMatch[2]) {
+    else if (mcQuestionMatch && mcQuestionMatch[2]) {
       const questionNumber = parseInt(mcQuestionMatch[1]);
       const questionText = mcQuestionMatch[2].trim();
 
@@ -955,40 +1031,77 @@ const extractQuestionsDirectly = async (text, answerData = { answers: {} }) => {
       // Check if we have an answer for this question in the pre-loaded answer data
       const questionNumber = index + 1;
       if (answerData && answerData.answers && answerData.answers[questionNumber]) {
-        const correctLetter = answerData.answers[questionNumber];
-        console.log(`  Found answer in pre-loaded answer data for question ${questionNumber}: ${correctLetter}`);
+        const answer = answerData.answers[questionNumber];
+        console.log(`  Found answer in pre-loaded answer data for question ${questionNumber}: ${answer}`);
 
-        // Find the option with this letter
-        const correctOption = q.options.find(opt =>
-          opt.letter && opt.letter.toUpperCase() === correctLetter
-        );
+        // Handle different question types
+        if (q.type === 'multiple-choice') {
+          const correctLetter = answer.toUpperCase();
 
-        if (correctOption) {
-          // Mark this option as correct
-          q.options.forEach(opt => {
-            opt.isCorrect = (opt.letter && opt.letter.toUpperCase() === correctLetter);
-          });
+          // Find the option with this letter
+          const correctOption = q.options.find(opt =>
+            opt.letter && opt.letter.toUpperCase() === correctLetter
+          );
 
-          // Set the correct answer text
-          q.correctAnswer = correctOption.text;
+          if (correctOption) {
+            // Mark this option as correct
+            q.options.forEach(opt => {
+              opt.isCorrect = (opt.letter && opt.letter.toUpperCase() === correctLetter);
+            });
 
-          console.log(`  Set correct answer for question ${questionNumber} to option ${correctLetter}: "${correctOption.text.substring(0, 30)}..."`);
-        } else {
-          console.log(`  Could not find option with letter ${correctLetter} for question ${questionNumber}`);
+            // Set the correct answer text
+            q.correctAnswer = correctOption.text;
 
+            console.log(`  Set correct answer for question ${questionNumber} to option ${correctLetter}: "${correctOption.text.substring(0, 30)}..."`);
+          } else {
+            console.log(`  Could not find option with letter ${correctLetter} for question ${questionNumber}`);
+
+            // Reset all options to not correct
+            q.options.forEach(opt => {
+              opt.isCorrect = false;
+            });
+
+            // Clear any existing correctAnswer
+            q.correctAnswer = '';
+          }
+        }
+        else if (q.type === 'true-false') {
+          // Handle true/false questions
+          const isTrue = answer.toLowerCase() === 'true' || answer.toLowerCase() === 't' || answer.toUpperCase() === 'A';
+          const isFalse = answer.toLowerCase() === 'false' || answer.toLowerCase() === 'f' || answer.toUpperCase() === 'B';
+
+          // Mark the correct option
+          if (isTrue || isFalse) {
+            q.options.forEach(opt => {
+              opt.isCorrect = (isTrue && opt.text === 'True') || (isFalse && opt.text === 'False');
+            });
+
+            // Set the correct answer text
+            q.correctAnswer = isTrue ? 'True' : 'False';
+
+            console.log(`  Set correct answer for true/false question ${questionNumber} to: ${q.correctAnswer}`);
+          } else {
+            console.log(`  Invalid answer format for true/false question ${questionNumber}: ${answer}`);
+          }
+        }
+        else if (q.type === 'fill-in-blank') {
+          // For fill-in-the-blank, just store the correct answer
+          q.correctAnswer = answer.trim();
+          console.log(`  Set correct answer for fill-in-blank question ${questionNumber} to: "${answer.trim()}"`);
+        }
+        else {
+          // For other question types, just store the answer
+          q.correctAnswer = answer.trim();
+          console.log(`  Set correct answer for question ${questionNumber} to: "${answer.trim().substring(0, 30)}..."`);
+        }
+      } else {
+        // No answer in pre-loaded data
+        if (q.type === 'multiple-choice' || q.type === 'true-false') {
           // Reset all options to not correct
           q.options.forEach(opt => {
             opt.isCorrect = false;
           });
-
-          // Clear any existing correctAnswer
-          q.correctAnswer = '';
         }
-      } else {
-        // No answer in pre-loaded data, mark all options as not correct
-        q.options.forEach(opt => {
-          opt.isCorrect = false;
-        });
 
         // Clear any existing correctAnswer
         q.correctAnswer = '';

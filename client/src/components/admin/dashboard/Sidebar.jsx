@@ -26,7 +26,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   ChevronLeft as ChevronLeftIcon,
-  School as SchoolIcon
+  School as SchoolIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
@@ -39,7 +41,7 @@ const Sidebar = ({ open, onClose }) => {
   const theme = useTheme();
   const location = useLocation();
   const { user } = useAuth();
-  const { mode } = useThemeMode();
+  const { mode, toggleMode } = useThemeMode();
 
   // State for expanded menu items
   const [expandedItems, setExpandedItems] = useState({
@@ -196,18 +198,35 @@ const Sidebar = ({ open, onClose }) => {
             </Typography>
           </Box>
         </Box>
-        <IconButton
-          onClick={onClose}
-          sx={{
-            display: { md: 'none' },
-            backgroundColor: alpha(theme.palette.primary.main, 0.1),
-            '&:hover': {
-              backgroundColor: alpha(theme.palette.primary.main, 0.2),
-            }
-          }}
-        >
-          <ChevronLeftIcon />
-        </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          {/* Theme toggle button - visible only on mobile */}
+          <IconButton
+            onClick={toggleMode}
+            sx={{
+              display: { xs: 'flex', sm: 'none' },
+              mr: 1,
+              backgroundColor: alpha(theme.palette.primary.main, 0.08),
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.primary.main, 0.12),
+              },
+              color: mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main
+            }}
+          >
+            {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+          </IconButton>
+          <IconButton
+            onClick={onClose}
+            sx={{
+              display: { md: 'none' },
+              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.primary.main, 0.2),
+              }
+            }}
+          >
+            <ChevronLeftIcon />
+          </IconButton>
+        </Box>
       </Box>
 
       <Divider />
@@ -376,11 +395,49 @@ const Sidebar = ({ open, onClose }) => {
       <Box sx={{ flexGrow: 1 }} />
 
       {/* Footer */}
-      <Box sx={{ p: 2, textAlign: 'center' }}>
-        <Typography variant="caption" color="text.secondary">
+      <Box sx={{ p: 2 }}>
+        {/* Theme toggle button for mobile - in footer */}
+        <Box
+          sx={{
+            display: { xs: 'flex', sm: 'none' },
+            justifyContent: 'center',
+            mb: 2,
+            mt: 1
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: alpha(theme.palette.primary.main, 0.08),
+              borderRadius: 2,
+              p: 1,
+              width: 'fit-content'
+            }}
+          >
+            <Typography variant="body2" sx={{ mr: 1 }}>
+              {mode === 'dark' ? 'Dark Mode' : 'Light Mode'}
+            </Typography>
+            <IconButton
+              onClick={toggleMode}
+              size="small"
+              sx={{
+                backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                },
+                color: mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main
+              }}
+            >
+              {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+            </IconButton>
+          </Box>
+        </Box>
+
+        <Typography variant="caption" color="text.secondary" align="center" display="block">
           Testify Admin Dashboard
         </Typography>
-        <Typography variant="caption" display="block" color="text.secondary">
+        <Typography variant="caption" display="block" color="text.secondary" align="center">
           &copy; {new Date().getFullYear()} All Rights Reserved
         </Typography>
       </Box>

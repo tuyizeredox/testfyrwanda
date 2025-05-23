@@ -14,6 +14,7 @@ import {
   AccordionDetails,
   Chip,
   Alert,
+  AlertTitle,
   Card,
   CardContent,
   List,
@@ -21,8 +22,10 @@ import {
   ListItemText,
   ListItemIcon,
   Tooltip,
-  LinearProgress
+  LinearProgress,
+  useTheme
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   ExpandMore,
   Check,
@@ -46,10 +49,21 @@ import { formatDate } from '../../utils/formatters';
 const ExamResult = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [exam, setExam] = useState(null);
+
+  // Function to determine color based on score percentage
+  const getScoreColor = (scoreRatio) => {
+    const percentage = scoreRatio * 100;
+    if (percentage >= 90) return theme.palette.success.main;
+    if (percentage >= 75) return theme.palette.success.light;
+    if (percentage >= 60) return theme.palette.primary.main;
+    if (percentage >= 50) return theme.palette.warning.main;
+    return theme.palette.error.main;
+  };
 
   useEffect(() => {
     const fetchResult = async () => {
@@ -410,10 +424,88 @@ const ExamResult = () => {
                             icon={isCorrect ? <Check /> : <Psychology />}
                             sx={{ mb: 2 }}
                           >
+                            <AlertTitle>
+                              {isCorrect ? "Correct" : "Feedback"}
+                            </AlertTitle>
                             <Typography variant="body2" fontWeight="medium">
                               {answer.feedback}
                             </Typography>
                           </Alert>
+                        )}
+
+                        {/* AI Grading Details - for open-ended questions */}
+                        {(question.type === 'open-ended' || question.type === 'fill-in-blank') && answer?.score !== undefined && (
+                          <Box sx={{ mt: 2, mb: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 1, border: '1px dashed', borderColor: alpha(theme.palette.primary.main, 0.2) }}>
+                            <Typography variant="subtitle2" color="primary.main" gutterBottom>
+                              <Psychology sx={{ fontSize: '1rem', verticalAlign: 'middle', mr: 1 }} />
+                              AI Grading Analysis
+                            </Typography>
+
+                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="body2" color="text.secondary" gutterBottom>
+                                  Score Quality
+                                </Typography>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={(answer.score / question.points) * 100}
+                                  sx={{
+                                    height: 8,
+                                    borderRadius: 4,
+                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                    '& .MuiLinearProgress-bar': {
+                                      bgcolor: getScoreColor(answer.score / question.points),
+                                    }
+                                  }}
+                                />
+                              </Box>
+                              <Box sx={{ ml: 2, minWidth: 60, textAlign: 'right' }}>
+                                <Typography variant="body2" fontWeight="bold" color={getScoreColor(answer.score / question.points)}>
+                                  {Math.round((answer.score / question.points) * 100)}%
+                                </Typography>
+                              </Box>
+                            </Box>
+
+                            {answer.conceptsPresent && answer.conceptsPresent.length > 0 && (
+                              <Box sx={{ mt: 2 }}>
+                                <Typography variant="body2" color="text.secondary" gutterBottom>
+                                  Key Concepts Covered:
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 0.5 }}>
+                                  {answer.conceptsPresent.map((concept, idx) => (
+                                    <Chip
+                                      key={idx}
+                                      label={concept}
+                                      size="small"
+                                      color="success"
+                                      variant="outlined"
+                                      icon={<Check fontSize="small" />}
+                                    />
+                                  ))}
+                                </Box>
+                              </Box>
+                            )}
+
+                            {answer.conceptsMissing && answer.conceptsMissing.length > 0 && (
+                              <Box sx={{ mt: 2 }}>
+                                <Typography variant="body2" color="text.secondary" gutterBottom>
+                                  Concepts to Improve:
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 0.5 }}>
+                                  {answer.conceptsMissing.map((concept, idx) => (
+                                    <Chip
+                                      key={idx}
+                                      label={concept}
+                                      size="small"
+                                      color="error"
+                                      variant="outlined"
+                                      icon={<Close fontSize="small" />}
+                                    />
+                                  ))}
+                                </Box>
+                              </Box>
+                            )}
+                          </Box>
                         )}
                       </Box>
                     </ListItem>
