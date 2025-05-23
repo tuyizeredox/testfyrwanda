@@ -7,11 +7,17 @@ import {
   Link,
   Divider,
   IconButton,
-  Tooltip
+  Tooltip,
+  useTheme,
+  alpha
 } from '@mui/material';
 import { Facebook, Twitter, LinkedIn, Instagram } from '@mui/icons-material';
+import { useThemeMode } from '../context/ThemeContext';
 
 const AuthFooter = () => {
+  const theme = useTheme();
+  const { mode } = useThemeMode();
+
   return (
     <Box
       component="footer"
@@ -19,8 +25,15 @@ const AuthFooter = () => {
         py: 3,
         px: 2,
         mt: 'auto',
-        backgroundColor: 'rgba(0, 0, 0, 0.02)',
-        borderTop: '1px solid rgba(0, 0, 0, 0.05)',
+        backgroundColor: mode === 'dark'
+          ? alpha(theme.palette.background.paper, 0.4)
+          : 'rgba(0, 0, 0, 0.02)',
+        borderTop: `1px solid ${mode === 'dark'
+          ? alpha(theme.palette.common.white, 0.05)
+          : 'rgba(0, 0, 0, 0.05)'}`,
+        backdropFilter: 'blur(10px)',
+        position: 'relative',
+        zIndex: 5,
       }}
     >
       <Container maxWidth="lg">
@@ -32,7 +45,15 @@ const AuthFooter = () => {
             alignItems: 'center',
           }}
         >
-          <Typography variant="body2" color="text.secondary" align="center">
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            align="center"
+            sx={{
+              fontWeight: 500,
+              opacity: mode === 'dark' ? 0.8 : 0.7,
+            }}
+          >
             © {new Date().getFullYear()} Testify. All rights reserved.
           </Typography>
 
@@ -47,9 +68,12 @@ const AuthFooter = () => {
                 <IconButton
                   size="small"
                   sx={{
-                    color: 'text.secondary',
+                    color: mode === 'dark' ? alpha(theme.palette.common.white, 0.6) : 'text.secondary',
+                    transition: 'all 0.2s ease',
                     '&:hover': {
                       color: social.color,
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 4px 8px ${alpha(social.color, 0.25)}`,
                     },
                   }}
                 >
@@ -60,7 +84,14 @@ const AuthFooter = () => {
           </Box>
         </Box>
 
-        <Divider sx={{ my: 2 }} />
+        <Divider
+          sx={{
+            my: 2,
+            borderColor: mode === 'dark'
+              ? alpha(theme.palette.common.white, 0.05)
+              : alpha(theme.palette.common.black, 0.05),
+          }}
+        />
 
         <Box
           sx={{
@@ -80,10 +111,31 @@ const AuthFooter = () => {
               key={index}
               component={RouterLink}
               to={link.to}
-              color="text.secondary"
-              underline="hover"
+              color={mode === 'dark' ? alpha(theme.palette.common.white, 0.7) : 'text.secondary'}
+              underline="none"
               variant="body2"
-              sx={{ '&:hover': { color: 'primary.main' } }}
+              sx={{
+                position: 'relative',
+                transition: 'all 0.2s ease',
+                fontWeight: 500,
+                '&:hover': {
+                  color: mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main,
+                  transform: 'translateY(-1px)',
+                },
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  width: '0%',
+                  height: '2px',
+                  bottom: '-2px',
+                  left: 0,
+                  backgroundColor: mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main,
+                  transition: 'width 0.3s ease',
+                },
+                '&:hover::after': {
+                  width: '100%',
+                }
+              }}
             >
               {link.label}
             </Link>

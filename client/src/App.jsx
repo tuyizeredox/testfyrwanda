@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { useAuth } from './context/AuthContext';
+import { useThemeMode, ThemeContext } from './context/ThemeContext';
 import {
   Box,
   Typography,
@@ -40,7 +40,9 @@ import {
   Tooltip,
   Badge,
   LinearProgress,
-  Stack
+  Stack,
+  useTheme,
+  alpha
 } from '@mui/material';
 import {
   School,
@@ -75,113 +77,14 @@ import {
   Subject,
   Link,
   QuestionAnswer,
-  Devices
+  Devices,
+  LightMode,
+  DarkMode,
+  Brightness4,
+  Brightness7
 } from '@mui/icons-material';
 
-// Create theme with gamified design
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#4a148c', // Deep purple
-      light: '#7c43bd',
-      dark: '#12005e',
-      contrastText: '#ffffff',
-      lighter: 'rgba(74, 20, 140, 0.1)', // Very light purple for backgrounds
-    },
-    secondary: {
-      main: '#ff6d00', // Bright orange
-      light: '#ff9e40',
-      dark: '#c43e00',
-      contrastText: '#000000',
-      lighter: 'rgba(255, 109, 0, 0.1)', // Very light orange for backgrounds
-    },
-    success: {
-      main: '#00c853', // Bright green
-      light: '#5efc82',
-      dark: '#009624',
-      contrastText: '#ffffff',
-    },
-    error: {
-      main: '#d50000', // Bright red
-      light: '#ff5131',
-      dark: '#9b0000',
-      contrastText: '#ffffff',
-    },
-    warning: {
-      main: '#ffc107', // Amber
-      light: '#fff350',
-      dark: '#c79100',
-      contrastText: '#000000',
-    },
-    info: {
-      main: '#2196f3', // Blue
-      light: '#6ec6ff',
-      dark: '#0069c0',
-      contrastText: '#ffffff',
-    },
-    background: {
-      default: '#f8f9fa',
-      paper: '#ffffff',
-    },
-    divider: 'rgba(0, 0, 0, 0.08)',
-  },
-  typography: {
-    fontFamily: '"Poppins", "Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontWeight: 700,
-    },
-    h2: {
-      fontWeight: 600,
-    },
-    h3: {
-      fontWeight: 600,
-    },
-    button: {
-      fontWeight: 600,
-      textTransform: 'none',
-    },
-  },
-  shape: {
-    borderRadius: 12,
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 30,
-          padding: '10px 24px',
-          boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
-          transition: 'all 0.3s ease',
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: '0 6px 15px rgba(0, 0, 0, 0.2)',
-          },
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          borderRadius: 16,
-          boxShadow: '0 8px 20px rgba(0, 0, 0, 0.1)',
-          overflow: 'hidden',
-          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-          '&:hover': {
-            transform: 'translateY(-5px)',
-            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.15)',
-          },
-        },
-      },
-    },
-    MuiAppBar: {
-      styleOverrides: {
-        root: {
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-        },
-      },
-    },
-  },
-});
+// We'll use the theme from ThemeContext instead of creating a new one here
 
 // Hide app bar on scroll
 function HideOnScroll(props) {
@@ -198,6 +101,8 @@ function HideOnScroll(props) {
 function App() {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
+  const { mode, toggleMode } = useThemeMode();
+  const theme = useTheme();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuAnchorEl, setMobileMenuAnchorEl] = useState(null);
   const [activeSection, setActiveSection] = useState('home');
@@ -303,6 +208,22 @@ function App() {
       </MenuItem>
       <Divider />
 
+      {/* Theme Toggle in Mobile Menu */}
+      <MenuItem onClick={toggleMode}>
+        {mode === 'dark' ? (
+          <>
+            <Brightness7 sx={{ mr: 2, fontSize: 20, color: 'warning.main' }} />
+            Light Mode
+          </>
+        ) : (
+          <>
+            <Brightness4 sx={{ mr: 2, fontSize: 20, color: 'primary.main' }} />
+            Dark Mode
+          </>
+        )}
+      </MenuItem>
+      <Divider />
+
       {isAuthenticated ? (
         <>
           <MenuItem
@@ -333,7 +254,7 @@ function App() {
   );
 
   return (
-    <ThemeProvider theme={theme}>
+    <>
       <CssBaseline />
 
       {/* Header */}
@@ -394,6 +315,34 @@ function App() {
               </Box>
 
               <Box sx={{ flexGrow: 1 }} />
+
+              {/* Theme Toggle Button */}
+              <Tooltip title={`Switch to ${mode === 'light' ? 'dark' : 'light'} mode`}>
+                <IconButton
+                  onClick={toggleMode}
+                  color="inherit"
+                  sx={{
+                    mr: { xs: 1, md: 2 },
+                    bgcolor: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(5px)',
+                    borderRadius: '50%',
+                    width: { xs: 40, md: 45 },
+                    height: { xs: 40, md: 45 },
+                    transition: 'all 0.3s ease',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      transform: 'rotate(30deg)',
+                    },
+                  }}
+                >
+                  {mode === 'dark' ? (
+                    <Brightness7 sx={{ fontSize: { xs: 22, md: 24 } }} />
+                  ) : (
+                    <Brightness4 sx={{ fontSize: { xs: 22, md: 24 } }} />
+                  )}
+                </IconButton>
+              </Tooltip>
 
               {/* Desktop Navigation */}
               <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
@@ -568,7 +517,7 @@ function App() {
         id="home"
         sx={{
           background: 'url(https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80) center center/cover no-repeat',
-          color: 'white',
+          color: mode === 'dark' ? 'white' : 'white',
           pt: { xs: 10, md: 16 },
           pb: { xs: 10, md: 16 },
           position: 'relative',
@@ -580,8 +529,24 @@ function App() {
             left: 0,
             width: '100%',
             height: '100%',
-            background: 'linear-gradient(135deg, rgba(74, 20, 140, 0.9) 0%, rgba(124, 67, 189, 0.85) 100%)',
+            background: mode === 'dark'
+              ? `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.95)} 0%, ${alpha(theme.palette.primary.main, 0.9)} 100%)`
+              : 'linear-gradient(135deg, rgba(74, 20, 140, 0.9) 0%, rgba(124, 67, 189, 0.85) 100%)',
             zIndex: 1,
+          },
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: mode === 'dark'
+              ? 'url(https://www.transparenttextures.com/patterns/dark-geometric.png)'
+              : 'url(https://www.transparenttextures.com/patterns/cubes.png)',
+            opacity: mode === 'dark' ? 0.15 : 0.1,
+            zIndex: 2,
+            pointerEvents: 'none',
           }
         }}
       >
@@ -729,7 +694,7 @@ function App() {
           }}
         />
 
-        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 3 }}>
+        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 5 }}>
           <Grid container spacing={8} alignItems="center">
             <Grid item xs={12} md={6}>
               <Grow in={true} timeout={1000}>
@@ -1274,7 +1239,27 @@ function App() {
       </Box>
 
       {/* Features Section */}
-      <Box id="features" sx={{ py: 12, bgcolor: 'background.default', position: 'relative', overflow: 'hidden' }}>
+      <Box
+        id="features"
+        sx={{
+          py: 12,
+          bgcolor: 'background.default',
+          position: 'relative',
+          overflow: 'hidden',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: mode === 'dark'
+              ? 'url(https://www.transparenttextures.com/patterns/dark-geometric.png)'
+              : 'url(https://www.transparenttextures.com/patterns/cubes.png)',
+            opacity: mode === 'dark' ? 0.05 : 0.03,
+            zIndex: 1,
+          }
+        }}>
         {/* Background decorative elements */}
         <Box
           sx={{
@@ -1394,7 +1379,7 @@ function App() {
               <Grid item xs={12} sm={6} md={4} key={index}>
                 <Zoom in={true} style={{ transitionDelay: `${feature.delay}ms` }}>
                   <Card
-                    elevation={4}
+                    elevation={mode === 'dark' ? 8 : 4}
                     sx={{
                       height: '100%',
                       display: 'flex',
@@ -1402,9 +1387,17 @@ function App() {
                       borderRadius: 4,
                       overflow: 'hidden',
                       transition: 'all 0.3s ease',
+                      backgroundColor: mode === 'dark'
+                        ? alpha(theme.palette.background.paper, 0.8)
+                        : theme.palette.background.paper,
+                      border: mode === 'dark'
+                        ? `1px solid ${alpha(theme.palette.common.white, 0.1)}`
+                        : 'none',
                       '&:hover': {
                         transform: 'translateY(-10px)',
-                        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.15)',
+                        boxShadow: mode === 'dark'
+                          ? `0 12px 30px ${alpha(theme.palette.common.black, 0.3)}`
+                          : '0 12px 30px rgba(0, 0, 0, 0.15)',
                         '& .feature-icon': {
                           transform: 'scale(1.1) rotate(5deg)',
                         }
@@ -1423,13 +1416,20 @@ function App() {
                         <Avatar
                           className="feature-icon"
                           sx={{
-                            bgcolor: `${feature.color}15`,
+                            bgcolor: mode === 'dark'
+                              ? alpha(feature.color, 0.2)
+                              : `${feature.color}15`,
                             color: feature.color,
                             width: 60,
                             height: 60,
                             mr: 2,
-                            boxShadow: `0 4px 10px ${feature.color}30`,
-                            transition: 'transform 0.3s ease',
+                            boxShadow: mode === 'dark'
+                              ? `0 4px 15px ${alpha(feature.color, 0.4)}`
+                              : `0 4px 10px ${feature.color}30`,
+                            transition: 'all 0.3s ease',
+                            border: mode === 'dark'
+                              ? `1px solid ${alpha(feature.color, 0.3)}`
+                              : 'none',
                           }}
                         >
                           {feature.icon}
@@ -1440,6 +1440,9 @@ function App() {
                           fontWeight="bold"
                           sx={{
                             color: feature.color,
+                            textShadow: mode === 'dark'
+                              ? `0 0 8px ${alpha(feature.color, 0.5)}`
+                              : 'none',
                           }}
                         >
                           {feature.title}
@@ -1483,7 +1486,16 @@ function App() {
       </Box>
 
       {/* How It Works Section */}
-      <Box id="how-it-works" sx={{ py: 12, background: 'linear-gradient(135deg, #f8f9fa 0%, #f0f2f5 100%)', position: 'relative', overflow: 'hidden' }}>
+      <Box
+        id="how-it-works"
+        sx={{
+          py: 12,
+          background: mode === 'dark'
+            ? `linear-gradient(135deg, ${alpha(theme.palette.background.default, 0.9)} 0%, ${alpha(theme.palette.background.paper, 0.8)} 100%)`
+            : 'linear-gradient(135deg, #f8f9fa 0%, #f0f2f5 100%)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
         {/* Decorative elements */}
         <Box
           sx={{
@@ -1508,9 +1520,13 @@ function App() {
                 px: 2,
                 py: 0.8,
                 borderRadius: '50px',
-                background: 'linear-gradient(90deg, #ff6d00, #ff9e40)',
+                background: mode === 'dark'
+                  ? 'linear-gradient(90deg, #ff9e40, #ffab40)'
+                  : 'linear-gradient(90deg, #ff6d00, #ff9e40)',
                 color: 'black',
-                boxShadow: '0 4px 10px rgba(255, 109, 0, 0.3)',
+                boxShadow: mode === 'dark'
+                  ? '0 4px 15px rgba(255, 109, 0, 0.5)'
+                  : '0 4px 10px rgba(255, 109, 0, 0.3)',
               }}
             />
             <Typography
@@ -1520,9 +1536,12 @@ function App() {
               gutterBottom
               sx={{
                 fontSize: { xs: '2.2rem', sm: '2.5rem', md: '3rem' },
-                background: 'linear-gradient(90deg, #4a148c, #7c43bd)',
+                background: mode === 'dark'
+                  ? 'linear-gradient(90deg, #9c64ff, #b794f6)'
+                  : 'linear-gradient(90deg, #4a148c, #7c43bd)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
+                textShadow: mode === 'dark' ? '0 0 15px rgba(156, 100, 255, 0.5)' : 'none',
                 mb: 2,
               }}
             >
@@ -1553,7 +1572,9 @@ function App() {
                     right: -15,
                     bottom: -15,
                     borderRadius: '20px',
-                    background: 'linear-gradient(135deg, rgba(74, 20, 140, 0.1) 0%, rgba(255, 109, 0, 0.1) 100%)',
+                    background: mode === 'dark'
+                      ? 'linear-gradient(135deg, rgba(74, 20, 140, 0.2) 0%, rgba(255, 109, 0, 0.2) 100%)'
+                      : 'linear-gradient(135deg, rgba(74, 20, 140, 0.1) 0%, rgba(255, 109, 0, 0.1) 100%)',
                     transform: 'rotate(-2deg)',
                     zIndex: 0,
                   }}
@@ -1565,8 +1586,12 @@ function App() {
                       zIndex: 1,
                       borderRadius: 4,
                       overflow: 'hidden',
-                      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
-                      border: '5px solid white',
+                      boxShadow: mode === 'dark'
+                        ? '0 20px 40px rgba(0, 0, 0, 0.4)'
+                        : '0 20px 40px rgba(0, 0, 0, 0.2)',
+                      border: mode === 'dark'
+                        ? '5px solid rgba(255, 255, 255, 0.1)'
+                        : '5px solid white',
                     }}
                   >
                     <Box
@@ -1592,12 +1617,14 @@ function App() {
                     position: 'absolute',
                     top: '10%',
                     right: '5%',
-                    bgcolor: 'white',
+                    bgcolor: mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'white',
                     color: 'primary.main',
                     borderRadius: '12px',
                     py: 1,
                     px: 2,
-                    boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
+                    boxShadow: mode === 'dark'
+                      ? '0 10px 20px rgba(74, 20, 140, 0.2)'
+                      : '0 10px 20px rgba(0,0,0,0.1)',
                     animation: 'float 3s infinite ease-in-out',
                     zIndex: 2,
                     display: { xs: 'none', md: 'block' },
@@ -1613,12 +1640,14 @@ function App() {
                     position: 'absolute',
                     bottom: '15%',
                     left: '5%',
-                    bgcolor: 'secondary.main',
+                    bgcolor: mode === 'dark' ? alpha('#ff6d00', 0.8) : 'secondary.main',
                     color: 'black',
                     borderRadius: '12px',
                     py: 1,
                     px: 2,
-                    boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
+                    boxShadow: mode === 'dark'
+                      ? '0 10px 20px rgba(255, 109, 0, 0.2)'
+                      : '0 10px 20px rgba(0,0,0,0.1)',
                     animation: 'float 4s infinite ease-in-out 1s',
                     zIndex: 2,
                     display: { xs: 'none', md: 'block' },
@@ -1641,7 +1670,9 @@ function App() {
                     width: '100%',
                     height: '80%',
                     transform: 'translateY(-50%)',
-                    borderLeft: '2px dashed rgba(74, 20, 140, 0.3)',
+                    borderLeft: mode === 'dark'
+                      ? '2px dashed rgba(74, 20, 140, 0.5)'
+                      : '2px dashed rgba(74, 20, 140, 0.3)',
                     zIndex: 0,
                   }}
                 />
@@ -1687,7 +1718,7 @@ function App() {
                     <Box sx={{ display: 'flex', mb: 5, alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
                       <Box
                         sx={{
-                          bgcolor: 'white',
+                          bgcolor: mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'white',
                           color: step.color,
                           width: 60,
                           height: 60,
@@ -1698,13 +1729,17 @@ function App() {
                           fontWeight: 'bold',
                           mr: 3,
                           flexShrink: 0,
-                          boxShadow: `0 8px 20px ${step.color}30`,
+                          boxShadow: mode === 'dark'
+                            ? `0 8px 20px ${alpha(step.color, 0.4)}`
+                            : `0 8px 20px ${step.color}30`,
                           border: `2px solid ${step.color}`,
                           fontSize: '1.2rem',
                           transition: 'all 0.3s ease',
                           '&:hover': {
-                            transform: 'scale(1.1)',
-                            boxShadow: `0 10px 25px ${step.color}40`,
+                            transform: 'scale(1.1) rotate(5deg)',
+                            boxShadow: mode === 'dark'
+                              ? `0 10px 25px ${alpha(step.color, 0.5)}`
+                              : `0 10px 25px ${step.color}40`,
                           }
                         }}
                       >
@@ -1714,11 +1749,19 @@ function App() {
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                           <Avatar
                             sx={{
-                              bgcolor: `${step.color}15`,
+                              bgcolor: mode === 'dark'
+                                ? alpha(step.color, 0.2)
+                                : `${step.color}15`,
                               color: step.color,
                               mr: 1.5,
                               width: 36,
                               height: 36,
+                              boxShadow: mode === 'dark'
+                                ? `0 4px 8px ${alpha(step.color, 0.3)}`
+                                : 'none',
+                              border: mode === 'dark'
+                                ? `1px solid ${alpha(step.color, 0.3)}`
+                                : 'none',
                             }}
                           >
                             {step.icon}
@@ -1729,6 +1772,9 @@ function App() {
                             fontWeight="bold"
                             sx={{
                               color: step.color,
+                              textShadow: mode === 'dark'
+                                ? `0 0 8px ${alpha(step.color, 0.5)}`
+                                : 'none',
                             }}
                           >
                             {step.title}
@@ -1765,8 +1811,17 @@ function App() {
                 py: 1.5,
                 borderRadius: 50,
                 fontWeight: 'bold',
-                boxShadow: '0 8px 20px rgba(255, 109, 0, 0.3)',
+                boxShadow: mode === 'dark'
+                  ? '0 8px 25px rgba(255, 109, 0, 0.5)'
+                  : '0 8px 20px rgba(255, 109, 0, 0.3)',
                 color: 'black',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-3px)',
+                  boxShadow: mode === 'dark'
+                    ? '0 12px 30px rgba(255, 109, 0, 0.6)'
+                    : '0 12px 25px rgba(255, 109, 0, 0.4)',
+                },
               }}
             >
               Get Started Now
@@ -1794,8 +1849,7 @@ function App() {
             background: 'linear-gradient(135deg, rgba(74, 20, 140, 0.9) 0%, rgba(124, 67, 189, 0.85) 100%)',
             zIndex: 1,
           }
-        }}
-      >
+        }}>
         {/* Animated particles */}
         <Box
           sx={{
@@ -1963,8 +2017,7 @@ function App() {
             background: 'linear-gradient(to bottom, rgba(248, 249, 250, 0.95), rgba(248, 249, 250, 0.85))',
             zIndex: 1,
           }
-        }}
-      >
+        }}>
         {/* Decorative elements */}
         <Box
           sx={{
@@ -2150,8 +2203,7 @@ function App() {
                             background: `linear-gradient(to bottom, ${testimonial.color}, transparent)`,
                             borderRadius: '3px',
                           }
-                        }}
-                      >
+                        }}>
                         "{testimonial.quote}"
                       </Typography>
 
@@ -2876,8 +2928,7 @@ function App() {
             opacity: 0.05,
             zIndex: 1,
           }
-        }}
-      >
+        }}>
         {/* Decorative elements */}
         <Box
           sx={{
@@ -3280,7 +3331,7 @@ function App() {
           </Box>
         </Container>
       </Box>
-    </ThemeProvider>
+    </>
   );
 }
 
