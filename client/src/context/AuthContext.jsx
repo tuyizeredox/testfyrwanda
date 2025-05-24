@@ -57,11 +57,11 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      // Create a timeout promise that rejects after 5 seconds
+      // Create a timeout promise that rejects after 20 seconds
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
           reject(new Error('Login timeout: The request took too long to complete. Please check your credentials and internet connection, then try again.'));
-        }, 5000); // 5 seconds timeout
+        }, 20000); // 20 seconds timeout
       });
 
       // Create the login request promise
@@ -69,7 +69,7 @@ export const AuthProvider = ({ children }) => {
         email: userData.email,
         password: userData.password,
       }, {
-        timeout: 5000 // 5 seconds timeout for axios as well
+        timeout: 20000 // 20 seconds timeout for axios as well
       });
 
       // Race between the login request and the timeout

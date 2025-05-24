@@ -172,7 +172,7 @@ const Login = () => {
     // Show initial login message
     setSnackbar({
       open: true,
-      message: 'Logging in... Please wait (will timeout in 5 seconds if credentials are invalid)',
+      message: 'Logging in... Please wait (will timeout in 20 seconds if credentials are invalid)',
       severity: 'info'
     });
 

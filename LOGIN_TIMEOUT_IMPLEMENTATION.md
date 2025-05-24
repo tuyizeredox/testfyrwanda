@@ -1,7 +1,7 @@
-# Login Timeout Implementation - 5 Second Timeout
+# Login Timeout Implementation - 20 Second Timeout
 
 ## Overview
-Successfully implemented a 5-second timeout for user login functionality across the entire authentication system.
+Successfully implemented a 20-second timeout for user login functionality across the entire authentication system.
 
 ## Changes Made
 
@@ -13,11 +13,11 @@ Successfully implemented a 5-second timeout for user login functionality across 
 
 #### Key Features:
 ```javascript
-// 5-second timeout promise
+// 20-second timeout promise
 const timeoutPromise = new Promise((_, reject) => {
   setTimeout(() => {
     reject(new Error('Login timeout: The request took too long to complete...'));
-  }, 5000);
+  }, 20000);
 });
 
 // Race between login request and timeout
@@ -31,7 +31,7 @@ const response = await Promise.race([loginPromise, timeoutPromise]);
 - **Improved user experience** with clear timeout messages
 
 #### Key Features:
-- Shows "Logging in... Please wait (timeout in 5 seconds)" message
+- Shows "Logging in... Please wait (timeout in 20 seconds)" message
 - Timeout errors don't trigger account lockout
 - Clear distinction between credential errors and timeout errors
 
@@ -42,20 +42,20 @@ const response = await Promise.race([loginPromise, timeoutPromise]);
 - **Smart attempt tracking** - timeouts don't count toward lockout
 
 #### Key Features:
-- Displays "Login timeout (5 seconds exceeded)" for timeout errors
+- Displays "Login timeout (20 seconds exceeded)" for timeout errors
 - Maintains existing lockout functionality for credential errors
 - Better error message hierarchy and user guidance
 
 ### 4. API Service (services/api.jsx)
 - **Maintained flexibility** for per-request timeout overrides
-- **Default 8-second timeout** with ability to override to 5 seconds for login
+- **Default 8-second timeout** with ability to override to 20 seconds for login
 - **Consistent timeout handling** across all API calls
 
 ## Timeout Behavior
 
 ### What Happens During Login:
-1. **User clicks login** → Shows "Logging in... Please wait (will timeout in 5 seconds if credentials are invalid)"
-2. **Request starts** → Both axios timeout (5s) and custom timeout (5s) are active
+1. **User clicks login** → Shows "Logging in... Please wait (will timeout in 20 seconds if credentials are invalid)"
+2. **Request starts** → Both axios timeout (20s) and custom timeout (20s) are active
 3. **If successful** → Normal login flow continues
 4. **If timeout occurs** → Shows specific timeout error message suggesting credential check
 5. **Timeout errors** → Do NOT count toward failed login attempts
@@ -92,10 +92,10 @@ const response = await Promise.race([loginPromise, timeoutPromise]);
 ### Promise.race() Pattern:
 ```javascript
 const timeoutPromise = new Promise((_, reject) => {
-  setTimeout(() => reject(new Error('Login timeout...')), 5000);
+  setTimeout(() => reject(new Error('Login timeout...')), 20000);
 });
 
-const loginPromise = api.post('/auth/login', data, { timeout: 5000 });
+const loginPromise = api.post('/auth/login', data, { timeout: 20000 });
 
 const response = await Promise.race([loginPromise, timeoutPromise]);
 ```
@@ -113,13 +113,13 @@ if (err.message && err.message.includes('timeout')) {
 
 ## Testing Scenarios
 
-### 1. Normal Login (< 5 seconds)
+### 1. Normal Login (< 20 seconds)
 - ✅ Shows loading message
 - ✅ Completes successfully
 - ✅ Redirects to dashboard
 
-### 2. Slow Network (> 5 seconds)
-- ✅ Shows timeout error after 5 seconds
+### 2. Slow Network (> 20 seconds)
+- ✅ Shows timeout error after 20 seconds
 - ✅ Doesn't count as failed attempt
 - ✅ User can retry immediately
 

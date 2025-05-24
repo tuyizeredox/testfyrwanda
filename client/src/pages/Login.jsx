@@ -187,7 +187,7 @@ const Login = () => {
     // Show initial login message with timeout info
     setSnackbar({
       open: true,
-      message: 'Logging in... Please wait (will timeout in 5 seconds if credentials are invalid)',
+      message: 'Logging in... Please wait (will timeout in 20 seconds if credentials are invalid)',
       severity: 'info'
     });
 
@@ -307,7 +307,7 @@ const Login = () => {
         errorMessage = err.message.includes('Login timeout')
           ? err.message
           : 'Login timeout: The request took too long to complete. Please check your credentials and internet connection, then try again.';
-        snackbarMessage = 'Login timeout (5 seconds exceeded) - Check credentials and connection';
+        snackbarMessage = 'Login timeout (20 seconds exceeded) - Check credentials and connection';
         shouldTrackFailure = false; // Don't track timeout as failed attempt
       } else {
         // Other error
