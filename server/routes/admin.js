@@ -27,7 +27,11 @@ const {
   createExam,
   scheduleExam,
   updateScheduledExam,
-  getAllResults
+  getAllResults,
+  getStudentPerformanceAnalytics,
+  debugAdminData,
+  getStudentResultsForRegrade,
+  regradeStudentResult
 } = require('../controllers/adminController');
 const auth = require('../middleware/auth');
 const { isAdmin } = require('../middleware/role');
@@ -115,6 +119,16 @@ router.get('/leaderboard', getOverallLeaderboard);
 router.get('/results/:resultId', getDetailedResult);
 router.get('/exams/:examId/results/export', exportExamResults);
 router.get('/results', getAllResults);
+
+// Analytics routes
+router.get('/analytics/student-performance', getStudentPerformanceAnalytics);
+
+// Student results management for regrading
+router.get('/student-results', getStudentResultsForRegrade);
+router.post('/regrade-result/:resultId', regradeStudentResult);
+
+// Debug route
+router.get('/debug', debugAdminData);
 
 // Security routes
 router.get('/security-alerts', getSecurityAlerts);

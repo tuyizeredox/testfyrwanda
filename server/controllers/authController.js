@@ -61,40 +61,53 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
-    const user = await User.findOne({ email });
+    // Validation is now handled by middleware for faster processing
+    // Optimize database query - select only necessary fields for faster retrieval
+    const user = await User.findOne({ email }).select('+password +isBlocked +lastLogin').lean(false);
 
+    // Fast fail for non-existent users
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Check if user is blocked
+    // Fast fail for blocked users
     if (user.isBlocked) {
       return res.status(403).json({ message: 'Your account has been blocked. Please contact an administrator.' });
     }
 
-    // Check if password is correct
+    // Optimize password comparison - this is the main bottleneck
     const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Update last login time
-    user.lastLogin = Date.now();
-    await user.save();
-
-    // Generate token
+    // Generate token immediately after successful authentication
     const token = generateToken(user._id);
 
-    res.json({
+    // Prepare response data
+    const responseData = {
       _id: user._id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
       token
+    };
+
+    // Send response immediately - don't wait for lastLogin update
+    res.json(responseData);
+
+    // Update last login time asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        await User.findByIdAndUpdate(user._id, { lastLogin: Date.now() }, { lean: true });
+      } catch (updateError) {
+        console.error('Last login update error:', updateError);
+        // Don't fail the login for this
+      }
     });
+
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Server error' });

@@ -34,6 +34,8 @@ import ExportData from '../components/admin/results/ExportData.jsx';
 import ExamLeaderboard from '../components/admin/results/ExamLeaderboard.jsx';
 import LeaderboardPage from './admin/LeaderboardPage.jsx';
 import NewLeaderboardPage from './admin/NewLeaderboardPage.jsx';
+import StudentResultsManager from '../components/admin/results/StudentResultsManager.jsx';
+import ResultDebugger from '../components/debug/ResultDebugger.jsx';
 
 // Security
 import LiveMonitoring from '../components/admin/security/LiveMonitoring.jsx';
@@ -143,10 +145,12 @@ const NewAdminDashboard = () => {
 
             {/* Results & Analytics */}
             <Route path="/results" element={<ResultsOverview />} />
+            <Route path="/results/manage" element={<StudentResultsManager />} />
             <Route path="/results/analytics" element={<PerformanceAnalytics />} />
             <Route path="/results/export" element={<ExportData />} />
             <Route path="/results/leaderboard" element={<NewLeaderboardPage />} />
             <Route path="/results/old-leaderboard" element={<LeaderboardPage />} />
+            <Route path="/results/debug" element={<ResultDebugger />} />
             <Route path="/exams/:examId/leaderboard" element={<NewLeaderboardPage />} />
 
             {/* Security */}

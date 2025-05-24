@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const compression = require('compression');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
@@ -11,15 +12,20 @@ dotenv.config();
 // Initialize Express app
 const app = express();
 
-// Middleware
+// Performance middleware - compression for faster responses
+app.use(compression());
+
+// CORS middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? process.env.FRONTEND_URL || 'https://testfyrwanda.vercel.app'
     : 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Body parsing middleware with optimized limits
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files - adjust for Render deployment
 let uploadsPath;
@@ -108,15 +114,25 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+// Optimize mongoose settings for faster performance
+mongoose.set('bufferCommands', false); // Disable mongoose buffering for faster responses
+
+// Connect to MongoDB with optimized settings for faster performance
+mongoose.connect(process.env.MONGODB_URI, {
+  // Connection pool settings for better performance
+  maxPoolSize: 10, // Maintain up to 10 socket connections
+  serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+  // Optimize for faster authentication
+  connectTimeoutMS: 10000, // Give up initial connection after 10 seconds
+})
   .then(() => {
-    console.log('Connected to MongoDB');
+    console.log('Connected to MongoDB with optimized settings');
 
     // Start server
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`Server running on port ${PORT} with performance optimizations`);
     });
   })
   .catch(err => {

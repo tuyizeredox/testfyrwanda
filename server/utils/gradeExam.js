@@ -1,6 +1,7 @@
 // Import both grading methods - standard and chunked
 const { gradeOpenEndedAnswer: standardGradeEssay } = require('./aiGrading');
 const { gradeOpenEndedAnswer: chunkedGradeEssay } = require('./chunkedAiGrading');
+const { gradeQuestionByType } = require('./enhancedGrading');
 const { parseAnswerFile } = require('./fileParser');
 const fs = require('fs');
 const path = require('path');
@@ -606,24 +607,32 @@ Only respond with the letter of the correct option (A, B, C, or D).
             modelAnswer = "The answer should demonstrate understanding of the core concepts, provide relevant examples, and explain the relationships between key components.";
           }
 
-          // Try chunked grading with the model answer, passing the question text
-          grading = await chunkedGradeEssay(
-            answer.textAnswer,
-            modelAnswer,
-            question.points,
-            question.text // Pass the question text to provide context
-          );
-        } catch (chunkedError) {
-          // If chunked grading fails, try standard grading
-          console.log(`Chunked grading failed, falling back to standard grading for question ${question._id}`);
-          console.error('Chunked grading error:', chunkedError);
+          // Use enhanced grading system for all question types
+          grading = await gradeQuestionByType(question, answer, modelAnswer);
+        } catch (enhancedError) {
+          // If enhanced grading fails, try chunked grading
+          console.log(`Enhanced grading failed, falling back to chunked grading for question ${question._id}`);
+          console.error('Enhanced grading error:', enhancedError);
 
-          grading = await standardGradeEssay(
-            answer.textAnswer,
-            question.correctAnswer,
-            question.points,
-            question.text // Pass the question text to provide context
-          );
+          try {
+            grading = await chunkedGradeEssay(
+              answer.textAnswer,
+              modelAnswer,
+              question.points,
+              question.text // Pass the question text to provide context
+            );
+          } catch (chunkedError) {
+            // If chunked grading fails, try standard grading
+            console.log(`Chunked grading failed, falling back to standard grading for question ${question._id}`);
+            console.error('Chunked grading error:', chunkedError);
+
+            grading = await standardGradeEssay(
+              answer.textAnswer,
+              question.correctAnswer,
+              question.points,
+              question.text // Pass the question text to provide context
+            );
+          }
         }
 
         console.log(`AI grading result for question ${question._id}:`, {
@@ -631,16 +640,24 @@ Only respond with the letter of the correct option (A, B, C, or D).
           feedbackPreview: grading.feedback.substring(0, 50) + '...'
         });
 
-        // Update the answer with AI grading results
+        // Update the answer with AI grading results - ensure database consistency like regrading
         result.answers[i].score = grading.score;
         result.answers[i].feedback = grading.feedback;
-        result.answers[i].isCorrect = grading.score >= question.points * 0.7; // 70% threshold
+        result.answers[i].isCorrect = grading.score >= question.points; // Full points required for "correct"
         result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+        result.answers[i].gradingMethod = grading.details?.gradingMethod || 'ai_grading'; // Track grading method
 
         // Add to total score
         totalScore += grading.score;
 
         console.log(`Graded answer for question ${question._id}, score: ${grading.score}/${question.points}`);
+
+        // Log semantic matches for debugging
+        if (grading.details && grading.details.gradingMethod === 'semantic_match') {
+          console.log(`Semantic match detected for question ${question._id}: "${answer.textAnswer || answer.selectedOption}" ≈ "${question.correctAnswer}"`);
+        }
+
+        // Note: We'll save all progress at the end to avoid validation conflicts
       } catch (error) {
         console.error(`Error grading answer for question ${question._id}:`, error);
 
@@ -1010,6 +1027,10 @@ const regradeExamResult = async (resultId, forceRegrade = false) => {
     // We're not using answer files anymore - using AI to determine correct answers
     console.log(`Using AI to determine correct answers for exam: ${result.exam?._id || 'unknown'}`);
 
+    // Track the old score for comparison
+    const oldScore = result.totalScore || 0;
+    const oldPercentage = result.maxPossibleScore > 0 ? Math.round((oldScore / result.maxPossibleScore) * 100) : 0;
+
     // Reset total score if we're force regrading
     let totalScore = forceRegrade ? 0 : result.totalScore || 0;
 
@@ -1332,24 +1353,32 @@ Only respond with the letter of the correct option (A, B, C, or D).
             modelAnswer = "The answer should demonstrate understanding of the core concepts, provide relevant examples, and explain the relationships between key components.";
           }
 
-          // Try chunked grading with the model answer, passing the question text
-          grading = await chunkedGradeEssay(
-            answer.textAnswer,
-            modelAnswer,
-            question.points,
-            question.text // Pass the question text to provide context
-          );
-        } catch (chunkedError) {
-          // If chunked grading fails, try standard grading
-          console.log(`Chunked grading failed, falling back to standard grading for question ${question._id}`);
-          console.error('Chunked grading error:', chunkedError);
+          // Use enhanced grading system for all question types
+          grading = await gradeQuestionByType(question, answer, modelAnswer);
+        } catch (enhancedError) {
+          // If enhanced grading fails, try chunked grading
+          console.log(`Enhanced grading failed, falling back to chunked grading for question ${question._id}`);
+          console.error('Enhanced grading error:', enhancedError);
 
-          grading = await standardGradeEssay(
-            answer.textAnswer,
-            question.correctAnswer,
-            question.points,
-            question.text // Pass the question text to provide context
-          );
+          try {
+            grading = await chunkedGradeEssay(
+              answer.textAnswer,
+              modelAnswer,
+              question.points,
+              question.text // Pass the question text to provide context
+            );
+          } catch (chunkedError) {
+            // If chunked grading fails, try standard grading
+            console.log(`Chunked grading failed, falling back to standard grading for question ${question._id}`);
+            console.error('Chunked grading error:', chunkedError);
+
+            grading = await standardGradeEssay(
+              answer.textAnswer,
+              question.correctAnswer,
+              question.points,
+              question.text // Pass the question text to provide context
+            );
+          }
         }
 
         console.log(`AI grading result for question ${question._id}:`, {
@@ -1357,16 +1386,24 @@ Only respond with the letter of the correct option (A, B, C, or D).
           feedbackPreview: grading.feedback.substring(0, 50) + '...'
         });
 
-        // Update the answer with AI grading results
+        // Update the answer with AI grading results - ensure database consistency like regrading
         result.answers[i].score = grading.score;
         result.answers[i].feedback = grading.feedback;
-        result.answers[i].isCorrect = grading.score >= question.points * 0.7; // 70% threshold
+        result.answers[i].isCorrect = grading.score >= question.points; // Full points required for "correct"
         result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+        result.answers[i].gradingMethod = grading.details?.gradingMethod || 'regrade_ai_grading'; // Track grading method
 
         // Add to total score
         totalScore += grading.score;
 
         console.log(`Graded answer for question ${question._id}, score: ${grading.score}/${question.points}`);
+
+        // Log semantic matches for debugging
+        if (grading.details && grading.details.gradingMethod === 'semantic_match') {
+          console.log(`Semantic match detected for question ${question._id}: "${answer.textAnswer || answer.selectedOption}" ≈ "${question.correctAnswer}"`);
+        }
+
+        // Note: We'll save all progress at the end to avoid validation conflicts
       } catch (error) {
         console.error(`Error grading answer for question ${question._id}:`, error);
 
@@ -1461,6 +1498,8 @@ Only respond with the letter of the correct option (A, B, C, or D).
 
     return {
       resultId,
+      oldScore,
+      oldPercentage,
       totalScore,
       maxPossibleScore: result.maxPossibleScore,
       percentage: (totalScore / result.maxPossibleScore) * 100

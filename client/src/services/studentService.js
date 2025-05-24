@@ -6,7 +6,6 @@ import api from './api';
  */
 export const getAssignedExams = async () => {
   try {
-    // Removed the duplicate /api prefix since it's already in the baseURL
     const response = await api.get('/student/exams');
     return response.data;
   } catch (error) {
@@ -22,7 +21,6 @@ export const getAssignedExams = async () => {
  */
 export const getExamById = async (id) => {
   try {
-    // Removed the duplicate /api prefix
     const response = await api.get(`/student/exams/${id}`);
     return response.data;
   } catch (error) {
@@ -38,7 +36,6 @@ export const getExamById = async (id) => {
  */
 export const startExam = async (id) => {
   try {
-    // Removed the duplicate /api prefix
     const response = await api.post(`/student/exams/${id}/start`);
     return response.data;
   } catch (error) {
@@ -55,7 +52,6 @@ export const startExam = async (id) => {
  */
 export const submitExam = async (id, answers) => {
   try {
-    // Removed the duplicate /api prefix
     const response = await api.post(`/student/exams/${id}/submit`, { answers });
     return response.data;
   } catch (error) {
@@ -70,7 +66,6 @@ export const submitExam = async (id, answers) => {
  */
 export const getExamResults = async () => {
   try {
-    // Removed the duplicate /api prefix
     const response = await api.get('/student/results');
     return response.data;
   } catch (error) {
@@ -86,7 +81,6 @@ export const getExamResults = async () => {
  */
 export const getDetailedResult = async (id) => {
   try {
-    // Removed the duplicate /api prefix
     const response = await api.get(`/student/results/${id}`);
     return response.data;
   } catch (error) {

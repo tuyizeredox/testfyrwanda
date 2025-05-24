@@ -28,7 +28,12 @@ import {
   ChevronLeft as ChevronLeftIcon,
   School as SchoolIcon,
   DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon
+  LightMode as LightModeIcon,
+  ManageAccounts as ManageIcon,
+  Assessment as GradeIcon,
+  Leaderboard as LeaderboardIcon,
+  FileDownload as ExportIcon,
+  Insights as InsightsIcon
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
@@ -112,10 +117,11 @@ const Sidebar = ({ open, onClose }) => {
       icon: <AnalyticsIcon />,
       expandable: true,
       subItems: [
-        { id: 'results-overview', label: 'Results Overview', path: '/results' },
-        { id: 'results-analytics', label: 'Performance Analytics', path: '/results/analytics' },
-        { id: 'results-leaderboard', label: 'Student Leaderboard', path: '/results/leaderboard' },
-        { id: 'results-export', label: 'Export Data', path: '/results/export' }
+        { id: 'results-manage', label: 'Manage & Regrade', path: '/results/manage', icon: <ManageIcon />, description: 'View and regrade student results' },
+        { id: 'results-overview', label: 'Results Overview', path: '/results', icon: <AnalyticsIcon />, description: 'General results overview' },
+        { id: 'results-analytics', label: 'Performance Analytics', path: '/results/analytics', icon: <InsightsIcon />, description: 'Detailed performance analysis' },
+        { id: 'results-leaderboard', label: 'Student Leaderboard', path: '/results/leaderboard', icon: <LeaderboardIcon />, description: 'Student rankings and achievements' },
+        { id: 'results-export', label: 'Export Data', path: '/results/export', icon: <ExportIcon />, description: 'Export results to files' }
       ]
     },
     {
@@ -333,24 +339,59 @@ const Sidebar = ({ open, onClose }) => {
                           component={Link}
                           to={`/admin${subItem.path}`}
                           sx={{
-                            pl: 4,
-                            py: 0.75,
+                            pl: 3,
+                            py: 1,
                             borderRadius: 3,
                             mb: 0.5,
                             bgcolor: isActive(subItem.path) ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                            border: isActive(subItem.path) ? `1px solid ${alpha(theme.palette.primary.main, 0.2)}` : '1px solid transparent',
                             '&:hover': {
                               bgcolor: alpha(theme.palette.primary.main, 0.08),
-                            }
+                              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                              transform: 'translateX(4px)'
+                            },
+                            transition: 'all 0.2s ease'
                           }}
                         >
+                          {subItem.icon && (
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 32,
+                                color: isActive(subItem.path) ? 'primary.main' : 'text.secondary'
+                              }}
+                            >
+                              {subItem.icon}
+                            </ListItemIcon>
+                          )}
                           <ListItemText
                             primary={subItem.label}
+                            secondary={subItem.description}
                             primaryTypographyProps={{
                               fontSize: 14,
-                              fontWeight: isActive(subItem.path) ? 600 : 400,
+                              fontWeight: isActive(subItem.path) ? 600 : 500,
                               color: isActive(subItem.path) ? 'primary.main' : 'text.primary'
                             }}
+                            secondaryTypographyProps={{
+                              fontSize: 11,
+                              color: 'text.secondary',
+                              sx: {
+                                display: subItem.description ? 'block' : 'none',
+                                mt: 0.25,
+                                lineHeight: 1.2
+                              }
+                            }}
                           />
+                          {isActive(subItem.path) && (
+                            <Box
+                              sx={{
+                                width: 4,
+                                height: 20,
+                                bgcolor: 'primary.main',
+                                borderRadius: 2,
+                                ml: 1
+                              }}
+                            />
+                          )}
                         </ListItemButton>
                       ))}
                     </List>

@@ -118,7 +118,41 @@ const getDetailedResult = async (req, res) => {
 
     // Validate the resultId
     if (!req.params.resultId || !req.params.resultId.match(/^[0-9a-fA-F]{24}$/)) {
+      console.log(`Invalid result ID format: ${req.params.resultId}`);
       return res.status(400).json({ message: 'Invalid result ID format' });
+    }
+
+    // First, check if the result exists at all
+    const resultExists = await Result.findById(req.params.resultId);
+    if (!resultExists) {
+      console.log(`Result with ID ${req.params.resultId} does not exist in database`);
+
+      // Let's also check if there are any results for this student
+      const studentResults = await Result.find({ student: req.user._id });
+      console.log(`Student ${req.user._id} has ${studentResults.length} total results`);
+
+      return res.status(404).json({
+        message: 'Result not found',
+        debug: {
+          resultId: req.params.resultId,
+          studentId: req.user._id,
+          totalStudentResults: studentResults.length
+        }
+      });
+    }
+
+    console.log(`Result exists. Student: ${resultExists.student}, Completed: ${resultExists.isCompleted}, Exam: ${resultExists.exam}`);
+
+    // Check if it belongs to this student
+    if (resultExists.student.toString() !== req.user._id.toString()) {
+      console.log(`Result belongs to different student. Expected: ${req.user._id}, Found: ${resultExists.student}`);
+      return res.status(403).json({ message: 'Not authorized to view this result' });
+    }
+
+    // Check if it's completed
+    if (!resultExists.isCompleted) {
+      console.log(`Result is not completed yet`);
+      return res.status(404).json({ message: 'Result not completed yet' });
     }
 
     const result = await Result.findOne({
@@ -131,7 +165,7 @@ const getDetailedResult = async (req, res) => {
     }).populate('exam', 'title description timeLimit');
 
     if (!result) {
-      console.log(`Result not found for ID: ${req.params.resultId}, student: ${req.user._id}`);
+      console.log(`Result not found after population for ID: ${req.params.resultId}, student: ${req.user._id}`);
       return res.status(404).json({ message: 'Result not found or not completed yet' });
     }
 
@@ -302,10 +336,132 @@ const getClassLeaderboard = async (req, res) => {
   }
 };
 
+// @desc    Debug student results to troubleshoot issues
+// @route   GET /api/student/debug-results
+// @access  Private/Student
+const debugStudentResults = async (req, res) => {
+  try {
+    const studentId = req.user._id;
+
+    // Get all results for this student
+    const allResults = await Result.find({ student: studentId })
+      .populate('exam', 'title createdBy')
+      .populate('student', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+
+    // Get completed results
+    const completedResults = allResults.filter(r => r.isCompleted);
+
+    // Get pending results
+    const pendingResults = allResults.filter(r => !r.isCompleted);
+
+    const debugInfo = {
+      student: {
+        id: studentId,
+        name: req.user.firstName + ' ' + req.user.lastName,
+        email: req.user.email
+      },
+      results: {
+        total: allResults.length,
+        completed: completedResults.length,
+        pending: pendingResults.length,
+        completedList: completedResults.map(r => ({
+          id: r._id,
+          exam: r.exam?.title || 'Unknown',
+          examId: r.exam?._id || 'Unknown',
+          examCreatedBy: r.exam?.createdBy || 'Unknown',
+          score: `${r.totalScore}/${r.maxPossibleScore}`,
+          percentage: r.maxPossibleScore > 0 ? Math.round((r.totalScore / r.maxPossibleScore) * 100) : 0,
+          completedAt: r.endTime,
+          createdAt: r.createdAt,
+          isCompleted: r.isCompleted,
+          answersCount: r.answers?.length || 0
+        })),
+        pendingList: pendingResults.map(r => ({
+          id: r._id,
+          exam: r.exam?.title || 'Unknown',
+          examId: r.exam?._id || 'Unknown',
+          startedAt: r.startTime,
+          createdAt: r.createdAt,
+          isCompleted: r.isCompleted,
+          answersCount: r.answers?.length || 0
+        }))
+      }
+    };
+
+    res.json(debugInfo);
+  } catch (error) {
+    console.error('Debug student results error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Check if a specific result exists and provide debug info
+// @route   GET /api/student/check-result/:resultId
+// @access  Private/Student
+const checkSpecificResult = async (req, res) => {
+  try {
+    const { resultId } = req.params;
+    const studentId = req.user._id;
+
+    console.log(`Checking result ${resultId} for student ${studentId}`);
+
+    // Check if result exists at all
+    const result = await Result.findById(resultId);
+
+    if (!result) {
+      // Get all results in the database for debugging
+      const allResults = await Result.find({}).select('_id student exam isCompleted').limit(10);
+
+      return res.json({
+        exists: false,
+        message: 'Result not found in database',
+        debug: {
+          searchedId: resultId,
+          studentId,
+          sampleResults: allResults.map(r => ({
+            id: r._id,
+            student: r.student,
+            exam: r.exam,
+            completed: r.isCompleted
+          }))
+        }
+      });
+    }
+
+    // Result exists, check ownership and completion
+    const belongsToStudent = result.student.toString() === studentId.toString();
+    const isCompleted = result.isCompleted;
+
+    res.json({
+      exists: true,
+      belongsToStudent,
+      isCompleted,
+      canAccess: belongsToStudent && isCompleted,
+      debug: {
+        resultId: result._id,
+        resultStudent: result.student,
+        requestingStudent: studentId,
+        examId: result.exam,
+        completed: result.isCompleted,
+        startTime: result.startTime,
+        endTime: result.endTime,
+        answersCount: result.answers?.length || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Check specific result error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   getAvailableExams,
   getStudentResults,
   getDetailedResult,
   getCurrentExamSession,
-  getClassLeaderboard
+  getClassLeaderboard,
+  debugStudentResults,
+  checkSpecificResult
 };

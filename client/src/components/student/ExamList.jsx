@@ -53,7 +53,7 @@ const ExamList = () => {
     try {
       setLoading(true);
       setError(null);
-      // Removed the duplicate /api prefix
+      // Fixed API endpoint
       const res = await api.get('/student/exams');
       setExams(res.data);
       setFilteredExams(res.data);

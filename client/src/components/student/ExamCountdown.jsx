@@ -13,7 +13,10 @@ import {
   List,
   ListItem,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  useTheme,
+  Chip,
+  Avatar
 } from '@mui/material';
 import {
   Timer,
@@ -23,13 +26,20 @@ import {
   ArrowForward,
   Block,
   LockOutlined,
-  CheckBox
+  CheckBox,
+  QuestionAnswer,
+  School,
+  Star
 } from '@mui/icons-material';
+import { styled, alpha } from '@mui/material/styles';
+import { useThemeMode } from '../../context/ThemeContext';
 import api from '../../services/api';
 
 const ExamCountdown = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const { mode } = useThemeMode();
 
   const [exam, setExam] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,11 +60,6 @@ const ExamCountdown = () => {
           setLoading(false);
           return;
         }
-
-        console.log('Exam data from API:', response.data);
-        console.log('Selective answering enabled:', response.data.allowSelectiveAnswering);
-        console.log('Section B required questions:', response.data.sectionBRequiredQuestions);
-        console.log('Section C required questions:', response.data.sectionCRequiredQuestions);
 
         setExam(response.data);
         setLoading(false);
@@ -181,27 +186,48 @@ const ExamCountdown = () => {
   }
 
   return (
-    <Container maxWidth="md" sx={{ mt: 8, mb: 8 }}>
-      <Grow in={true} timeout={800}>
-        <Paper
-          elevation={3}
-          sx={{
-            p: 4,
-            borderRadius: 0,
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-        >
-          <Box
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: mode === 'dark'
+          ? 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%)'
+          : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        py: 8
+      }}
+    >
+      <Container maxWidth="md">
+        <Grow in={true} timeout={800}>
+          <Paper
+            elevation={mode === 'dark' ? 12 : 6}
             sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '4px',
-              background: 'linear-gradient(90deg, #4a148c 0%, #ff6d00 100%)',
+              p: 4,
+              borderRadius: '16px',
+              position: 'relative',
+              overflow: 'hidden',
+              bgcolor: mode === 'dark'
+                ? alpha(theme.palette.background.paper, 0.95)
+                : 'background.paper',
+              backdropFilter: 'blur(20px)',
+              border: mode === 'dark'
+                ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}`
+                : 'none',
+              boxShadow: mode === 'dark'
+                ? '0 16px 48px rgba(0,0,0,0.4)'
+                : '0 12px 40px rgba(0,0,0,0.15)'
             }}
-          />
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '4px',
+                background: exam?.allowSelectiveAnswering
+                  ? 'linear-gradient(90deg, #9c27b0 0%, #e91e63 100%)'
+                  : 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)',
+              }}
+            />
 
           <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom textAlign="center">
             {exam.title}
@@ -211,22 +237,43 @@ const ExamCountdown = () => {
             {exam.description}
           </Typography>
 
-          {/* Debug info - remove in production */}
-          {process.env.NODE_ENV === 'development' && (
-            <Box sx={{ mb: 2, p: 2, bgcolor: '#f5f5f5', fontSize: '12px', textAlign: 'left' }}>
-              <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '12px', display: 'block' }}>
-                allowSelectiveAnswering: {String(exam.allowSelectiveAnswering)}
-              </Typography>
-              <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '12px', display: 'block' }}>
-                sectionBRequiredQuestions: {exam.sectionBRequiredQuestions}
-              </Typography>
-              <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '12px', display: 'block' }}>
-                sectionCRequiredQuestions: {exam.sectionCRequiredQuestions}
-              </Typography>
-            </Box>
-          )}
+          {/* Enhanced Exam Type Indicator */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+            <Chip
+              icon={exam.allowSelectiveAnswering ? <Star fontSize="small" /> : <QuestionAnswer fontSize="small" />}
+              label={exam.allowSelectiveAnswering ? 'Selective Answering Exam' : 'Standard Exam'}
+              size="medium"
+              sx={{
+                borderRadius: '12px',
+                fontWeight: 'bold',
+                bgcolor: exam.allowSelectiveAnswering
+                  ? mode === 'dark'
+                    ? alpha(theme.palette.secondary.main, 0.15)
+                    : alpha(theme.palette.secondary.main, 0.08)
+                  : mode === 'dark'
+                    ? alpha(theme.palette.primary.main, 0.15)
+                    : alpha(theme.palette.primary.main, 0.08),
+                color: exam.allowSelectiveAnswering
+                  ? theme.palette.secondary.main
+                  : theme.palette.primary.main,
+                border: `1px solid ${exam.allowSelectiveAnswering
+                  ? alpha(theme.palette.secondary.main, 0.3)
+                  : alpha(theme.palette.primary.main, 0.3)}`,
+                '& .MuiChip-icon': {
+                  color: exam.allowSelectiveAnswering
+                    ? theme.palette.secondary.main
+                    : theme.palette.primary.main
+                }
+              }}
+            />
+          </Box>
 
-          <Divider sx={{ my: 3 }} />
+          <Divider sx={{
+            my: 3,
+            bgcolor: mode === 'dark'
+              ? alpha(theme.palette.divider, 0.2)
+              : 'divider'
+          }} />
 
           <Box sx={{ textAlign: 'center', my: 4 }}>
             <Typography variant="h6" gutterBottom>
@@ -239,46 +286,84 @@ const ExamCountdown = () => {
                 position: 'relative',
                 justifyContent: 'center',
                 alignItems: 'center',
-                my: 2
+                my: 3
               }}
             >
               <CircularProgress
                 variant="determinate"
-                value={(countdown / 5) * 100}
-                size={120}
-                thickness={4}
-                sx={{ color: 'primary.main' }}
+                value={((5 - countdown) / 5) * 100}
+                size={140}
+                thickness={6}
+                sx={{
+                  color: exam?.allowSelectiveAnswering
+                    ? theme.palette.secondary.main
+                    : theme.palette.primary.main,
+                  filter: mode === 'dark' ? 'drop-shadow(0 0 8px rgba(25, 118, 210, 0.5))' : 'none'
+                }}
               />
               <Box
                 sx={{
                   position: 'absolute',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Typography variant="h3" component="div" fontWeight="bold" color="primary">
+                <Typography
+                  variant="h2"
+                  component="div"
+                  fontWeight="bold"
+                  sx={{
+                    color: exam?.allowSelectiveAnswering
+                      ? theme.palette.secondary.main
+                      : theme.palette.primary.main,
+                    textShadow: mode === 'dark' ? '0 0 10px rgba(25, 118, 210, 0.5)' : 'none'
+                  }}
+                >
                   {countdown}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
+                  seconds
                 </Typography>
               </Box>
             </Box>
           </Box>
 
-          <Alert severity="warning" sx={{ mb: 3, borderRadius: 0 }}>
+          <Alert
+            severity="warning"
+            sx={{
+              mb: 3,
+              borderRadius: '12px',
+              bgcolor: mode === 'dark'
+                ? alpha(theme.palette.warning.main, 0.1)
+                : alpha(theme.palette.warning.main, 0.05),
+              border: `1px solid ${alpha(theme.palette.warning.main, 0.3)}`,
+              '& .MuiAlert-icon': {
+                color: theme.palette.warning.main
+              }
+            }}
+          >
             <Typography variant="body1" fontWeight="medium">
               Important: Do not leave or refresh this page. Your exam will start automatically.
             </Typography>
           </Alert>
 
-          {/* Selective Answering Alert */}
+          {/* Enhanced Selective Answering Alert */}
           {exam.allowSelectiveAnswering && (
             <Alert
               severity="info"
               sx={{
                 mb: 3,
-                borderRadius: 0,
-                borderLeft: '4px solid',
-                borderColor: 'secondary.main'
+                borderRadius: '12px',
+                bgcolor: mode === 'dark'
+                  ? alpha(theme.palette.secondary.main, 0.1)
+                  : alpha(theme.palette.secondary.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.secondary.main, 0.3)}`,
+                borderLeft: `4px solid ${theme.palette.secondary.main}`,
+                '& .MuiAlert-icon': {
+                  color: theme.palette.secondary.main
+                }
               }}
               icon={<CheckBox color="secondary" />}
             >
@@ -362,13 +447,29 @@ const ExamCountdown = () => {
             </List>
           </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4, gap: 2 }}>
             <Button
               variant="outlined"
               color="error"
               onClick={() => navigate('/student/exams')}
               startIcon={<Block />}
-              sx={{ borderRadius: 0 }}
+              sx={{
+                borderRadius: '12px',
+                py: 1.5,
+                px: 3,
+                fontWeight: 'bold',
+                border: `2px solid ${theme.palette.error.main}`,
+                bgcolor: mode === 'dark'
+                  ? alpha(theme.palette.error.main, 0.1)
+                  : 'transparent',
+                '&:hover': {
+                  bgcolor: alpha(theme.palette.error.main, 0.1),
+                  transform: 'translateY(-2px)',
+                  boxShadow: mode === 'dark'
+                    ? '0 6px 20px rgba(244, 67, 54, 0.3)'
+                    : '0 4px 12px rgba(244, 67, 54, 0.2)',
+                }
+              }}
               disabled={countdown <= 2 || startingExam}
             >
               Cancel
@@ -376,18 +477,39 @@ const ExamCountdown = () => {
 
             <Button
               variant="contained"
-              color="primary"
               onClick={handleStartExam}
-              endIcon={<ArrowForward />}
-              sx={{ borderRadius: 0 }}
+              endIcon={startingExam ? <CircularProgress size={20} color="inherit" /> : <ArrowForward />}
+              sx={{
+                borderRadius: '12px',
+                py: 1.5,
+                px: 4,
+                fontWeight: 'bold',
+                background: exam?.allowSelectiveAnswering
+                  ? `linear-gradient(135deg, ${theme.palette.secondary.main}, ${theme.palette.secondary.dark})`
+                  : `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                boxShadow: mode === 'dark'
+                  ? exam?.allowSelectiveAnswering
+                    ? '0 6px 20px rgba(156, 39, 176, 0.4)'
+                    : '0 6px 20px rgba(25, 118, 210, 0.4)'
+                  : '0 4px 12px rgba(0,0,0,0.2)',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: mode === 'dark'
+                    ? exam?.allowSelectiveAnswering
+                      ? '0 8px 25px rgba(156, 39, 176, 0.5)'
+                      : '0 8px 25px rgba(25, 118, 210, 0.5)'
+                    : '0 6px 16px rgba(0,0,0,0.3)',
+                }
+              }}
               disabled={startingExam}
             >
               {startingExam ? 'Starting Exam...' : 'Start Now'}
             </Button>
           </Box>
-        </Paper>
-      </Grow>
-    </Container>
+          </Paper>
+        </Grow>
+      </Container>
+    </Box>
   );
 };
 

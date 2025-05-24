@@ -245,3 +245,119 @@ export const updateScheduledExam = async (examId, scheduleData) => {
     throw error;
   }
 };
+
+// Get student results for regrading
+export const getStudentResultsForRegrade = async (queryParams = '') => {
+  try {
+    const response = await api.get(`/admin/student-results?${queryParams}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching student results for regrade:', error);
+    throw error;
+  }
+};
+
+// Regrade a student result
+export const regradeStudentResult = async (resultId, data) => {
+  try {
+    const response = await api.post(`/admin/regrade-result/${resultId}`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error regrading student result:', error);
+    throw error;
+  }
+};
+
+// Get all results
+export const getAllResults = async () => {
+  try {
+    const response = await api.get('/admin/results');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching all results:', error);
+    throw error;
+  }
+};
+
+// Get detailed result
+export const getDetailedResult = async (resultId) => {
+  try {
+    const response = await api.get(`/admin/results/${resultId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching detailed result:', error);
+    throw error;
+  }
+};
+
+// Get exam leaderboard
+export const getExamLeaderboard = async (examId) => {
+  try {
+    const response = await api.get(`/admin/exams/${examId}/leaderboard`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching exam leaderboard:', error);
+    throw error;
+  }
+};
+
+// Get overall leaderboard
+export const getOverallLeaderboard = async () => {
+  try {
+    const response = await api.get('/admin/leaderboard');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching overall leaderboard:', error);
+    throw error;
+  }
+};
+
+// Bulk regrade exam results
+export const bulkRegradeResults = async (resultIds, method = 'comprehensive', forceRegrade = true) => {
+  try {
+    const response = await api.post('/exam/regrade-all', {
+      resultIds,
+      method,
+      forceRegrade
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error bulk regrading results:', error);
+    throw error;
+  }
+};
+
+// Default export with all functions
+const adminService = {
+  getDashboardStats,
+  getAllStudents,
+  registerStudent,
+  updateStudent,
+  deleteStudent,
+  getAllExams,
+  getScheduledExams,
+  toggleExamLock,
+  getExamById,
+  createExam,
+  updateExam,
+  deleteExam,
+  scheduleExam,
+  getRecentExams,
+  getRecentStudents,
+  getSecurityAlerts,
+  resolveSecurityAlert,
+  ignoreSecurityAlert,
+  getActivityLogs,
+  updateSecuritySettings,
+  getSecuritySettings,
+  updateScheduledExam,
+  getStudentResultsForRegrade,
+  regradeStudentResult,
+  getAllResults,
+  getDetailedResult,
+  getExamLeaderboard,
+  getOverallLeaderboard,
+  bulkRegradeResults
+};
+
+export default adminService;

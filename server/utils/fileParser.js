@@ -116,6 +116,417 @@ const addOptionToQuestion = (question, letter, text) => {
 };
 
 /**
+ * Enhanced AI-powered question extraction engine
+ * @param {string} text - Text extracted from document
+ * @param {Object} answerData - Pre-loaded answer data
+ * @returns {Promise<Object>} - Structured exam with questions
+ */
+const extractQuestionsWithEnhancedAI = async (text, answerData = { answers: {} }) => {
+  try {
+    console.log('Starting enhanced AI question extraction...');
+
+    // Get the Gemini model
+    const model = geminiClient.getModel('gemini-1.5-flash');
+
+    // Create a comprehensive prompt for question extraction
+    const prompt = `
+You are an expert AI system specialized in extracting exam questions from academic documents.
+Your task is to accurately identify, extract, and categorize ALL types of questions from the provided text.
+
+SUPPORTED QUESTION TYPES:
+1. Multiple Choice Questions (MCQs) - with options A, B, C, D
+2. True/False Questions - with True/False options
+3. Fill-in-the-Blank Questions - with blanks marked by _____ or similar
+4. Short Answer Questions - requiring brief responses
+5. Essay Questions - requiring detailed responses
+6. Matching Questions - pairing items from two lists
+7. Ordering/Sequencing Questions - arranging items in correct order
+8. Multi-part Questions - questions with sub-parts (a, b, c, etc.)
+
+EXTRACTION RULES:
+- Identify question numbers accurately (1, 2, 3... or 1.1, 1.2, etc.)
+- Extract complete question text including any context or diagrams descriptions
+- For MCQs: Extract all options with their letters (A, B, C, D)
+- For True/False: Create True/False options
+- For Fill-in-blank: Preserve the blank markers (_____)
+- Determine appropriate point values based on question complexity
+- Categorize questions into sections A (objective), B (short answer), C (essay)
+- Handle multi-part questions by creating separate entries for each part
+
+SECTION CLASSIFICATION:
+- Section A: MCQs, True/False, Fill-in-blank, Matching (1-2 points each)
+- Section B: Short answer, brief explanations (3-10 points each)
+- Section C: Essay questions, detailed analysis (10-25 points each)
+
+TEXT TO ANALYZE:
+${text}
+
+RESPONSE FORMAT:
+Return a JSON object with this exact structure:
+{
+  "sections": [
+    {
+      "name": "A",
+      "description": "Multiple Choice, True/False, and Fill-in-the-Blank Questions",
+      "questions": [
+        {
+          "text": "Complete question text",
+          "type": "multiple-choice|true-false|fill-in-blank|open-ended|matching|ordering",
+          "options": [
+            {"text": "Option text", "letter": "A", "isCorrect": false},
+            {"text": "Option text", "letter": "B", "isCorrect": false}
+          ],
+          "correctAnswer": "Correct answer or explanation",
+          "points": 1,
+          "questionNumber": "1",
+          "subParts": []
+        }
+      ]
+    },
+    {
+      "name": "B",
+      "description": "Short Answer Questions",
+      "questions": []
+    },
+    {
+      "name": "C",
+      "description": "Essay Questions",
+      "questions": []
+    }
+  ]
+}
+
+IMPORTANT:
+- Extract ALL questions found in the text
+- Ensure question numbering is preserved
+- For questions without clear options, infer appropriate choices based on context
+- If a question type is unclear, classify as "open-ended"
+- Assign realistic point values based on question complexity
+- Return only valid JSON, no additional text or explanations
+`;
+
+    console.log('Sending enhanced extraction prompt to Gemini AI...');
+
+    // Generate content with the AI model
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const text_response = response.text();
+
+    console.log('Received response from enhanced AI extraction');
+
+    // Parse the JSON response
+    let extractedData;
+    try {
+      // Clean the response to extract JSON
+      const jsonMatch = text_response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        extractedData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in AI response');
+      }
+    } catch (parseError) {
+      console.error('Error parsing AI extraction response:', parseError);
+      // Fallback to basic extraction
+      return await extractQuestionsDirectly(text, answerData);
+    }
+
+    // Validate and enhance the extracted data
+    const enhancedData = await validateAndEnhanceExtraction(extractedData, answerData);
+
+    console.log(`Enhanced AI extraction completed. Found ${enhancedData.sections.reduce((total, section) => total + section.questions.length, 0)} questions`);
+
+    return enhancedData;
+
+  } catch (error) {
+    console.error('Error in enhanced AI extraction:', error);
+    // Fallback to existing extraction method
+    console.log('Falling back to basic extraction method...');
+    return await extractQuestionsDirectly(text, answerData);
+  }
+};
+
+/**
+ * Validate and enhance extracted question data
+ * @param {Object} extractedData - Raw extracted data from AI
+ * @param {Object} answerData - Pre-loaded answer data
+ * @returns {Promise<Object>} - Validated and enhanced data
+ */
+const validateAndEnhanceExtraction = async (extractedData, answerData) => {
+  try {
+    console.log('Validating and enhancing extracted data...');
+
+    // Ensure sections exist
+    if (!extractedData.sections || !Array.isArray(extractedData.sections)) {
+      extractedData.sections = [
+        { name: 'A', description: 'Multiple Choice, True/False, and Fill-in-the-Blank Questions', questions: [] },
+        { name: 'B', description: 'Short Answer Questions', questions: [] },
+        { name: 'C', description: 'Essay Questions', questions: [] }
+      ];
+    }
+
+    // Process each section
+    for (const section of extractedData.sections) {
+      if (!section.questions) section.questions = [];
+
+      // Process each question in the section
+      for (let i = 0; i < section.questions.length; i++) {
+        const question = section.questions[i];
+
+        // Validate question structure
+        if (!question.text) {
+          console.warn(`Question ${i + 1} in section ${section.name} has no text, skipping`);
+          section.questions.splice(i, 1);
+          i--;
+          continue;
+        }
+
+        // Set default values
+        question.type = question.type || 'open-ended';
+        question.points = question.points || (section.name === 'A' ? 1 : section.name === 'B' ? 5 : 15);
+        question.options = question.options || [];
+        question.correctAnswer = question.correctAnswer || 'Not provided';
+
+        // Enhance based on question type
+        await enhanceQuestionByType(question, answerData);
+
+        // Use pre-loaded answers if available
+        const questionNumber = question.questionNumber || (i + 1).toString();
+        if (answerData.answers && answerData.answers[questionNumber]) {
+          question.correctAnswer = answerData.answers[questionNumber];
+          console.log(`Using pre-loaded answer for question ${questionNumber}: ${question.correctAnswer}`);
+        }
+      }
+    }
+
+    return extractedData;
+
+  } catch (error) {
+    console.error('Error validating extracted data:', error);
+    return extractedData; // Return as-is if validation fails
+  }
+};
+
+/**
+ * Enhance question based on its type
+ * @param {Object} question - Question object to enhance
+ * @param {Object} answerData - Answer data for reference
+ */
+const enhanceQuestionByType = async (question, answerData) => {
+  try {
+    switch (question.type) {
+      case 'multiple-choice':
+        // Ensure we have 4 options for MCQs
+        if (!question.options || question.options.length < 2) {
+          question.options = await generateMCQOptions(question.text);
+        }
+        // Ensure options have proper structure
+        question.options = question.options.map((opt, index) => ({
+          text: opt.text || opt,
+          letter: opt.letter || String.fromCharCode(65 + index),
+          isCorrect: opt.isCorrect || false
+        }));
+        break;
+
+      case 'true-false':
+        // Ensure True/False options exist
+        question.options = [
+          { text: 'True', letter: 'A', isCorrect: false },
+          { text: 'False', letter: 'B', isCorrect: false }
+        ];
+        break;
+
+      case 'fill-in-blank':
+        // Ensure the question has blank markers
+        if (!question.text.includes('_____') && !question.text.includes('____')) {
+          // Try to identify where blanks should be
+          question.text = await identifyBlanksInText(question.text);
+        }
+        break;
+
+      case 'matching':
+        // Structure matching questions properly
+        if (!question.matchingPairs) {
+          question.matchingPairs = await extractMatchingPairs(question.text);
+        }
+        break;
+
+      case 'ordering':
+        // Structure ordering questions properly
+        if (!question.itemsToOrder) {
+          question.itemsToOrder = await extractOrderingItems(question.text);
+        }
+        break;
+    }
+  } catch (error) {
+    console.error(`Error enhancing question type ${question.type}:`, error);
+  }
+};
+
+/**
+ * Generate MCQ options using AI when not found in text
+ * @param {string} questionText - The question text
+ * @returns {Promise<Array>} - Array of options
+ */
+const generateMCQOptions = async (questionText) => {
+  try {
+    const model = geminiClient.getModel('gemini-1.5-flash');
+
+    const prompt = `
+Generate 4 plausible multiple choice options for this question:
+"${questionText}"
+
+Return only a JSON array of options in this format:
+[
+  {"text": "Option A text", "letter": "A", "isCorrect": false},
+  {"text": "Option B text", "letter": "B", "isCorrect": false},
+  {"text": "Option C text", "letter": "C", "isCorrect": false},
+  {"text": "Option D text", "letter": "D", "isCorrect": false}
+]
+
+Make the options realistic and academically appropriate. Do not indicate which is correct.
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response.text();
+
+    // Extract JSON from response
+    const jsonMatch = response.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+
+    // Fallback options
+    return [
+      { text: 'Option A', letter: 'A', isCorrect: false },
+      { text: 'Option B', letter: 'B', isCorrect: false },
+      { text: 'Option C', letter: 'C', isCorrect: false },
+      { text: 'Option D', letter: 'D', isCorrect: false }
+    ];
+  } catch (error) {
+    console.error('Error generating MCQ options:', error);
+    return [
+      { text: 'Option A', letter: 'A', isCorrect: false },
+      { text: 'Option B', letter: 'B', isCorrect: false },
+      { text: 'Option C', letter: 'C', isCorrect: false },
+      { text: 'Option D', letter: 'D', isCorrect: false }
+    ];
+  }
+};
+
+/**
+ * Identify where blanks should be in fill-in-blank questions
+ * @param {string} questionText - The question text
+ * @returns {Promise<string>} - Question text with blanks marked
+ */
+const identifyBlanksInText = async (questionText) => {
+  try {
+    const model = geminiClient.getModel('gemini-1.5-flash');
+
+    const prompt = `
+Identify where blanks should be placed in this fill-in-the-blank question:
+"${questionText}"
+
+Return the question text with blanks marked as _____ (5 underscores).
+Only return the modified question text, no explanations.
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response.text().trim();
+
+    // If AI response looks valid, use it, otherwise return original
+    if (response.includes('_____')) {
+      return response;
+    }
+
+    return questionText + ' _____'; // Add blank at end as fallback
+  } catch (error) {
+    console.error('Error identifying blanks:', error);
+    return questionText + ' _____'; // Add blank at end as fallback
+  }
+};
+
+/**
+ * Extract matching pairs from matching questions
+ * @param {string} questionText - The question text
+ * @returns {Promise<Object>} - Matching pairs structure
+ */
+const extractMatchingPairs = async (questionText) => {
+  try {
+    const model = geminiClient.getModel('gemini-1.5-flash');
+
+    const prompt = `
+Extract matching pairs from this matching question:
+"${questionText}"
+
+Return a JSON object with this structure:
+{
+  "leftColumn": ["Item 1", "Item 2", "Item 3"],
+  "rightColumn": ["Match A", "Match B", "Match C"],
+  "correctPairs": [
+    {"left": 0, "right": 0},
+    {"left": 1, "right": 1},
+    {"left": 2, "right": 2}
+  ]
+}
+
+If you cannot identify clear matching pairs, return null.
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response.text();
+
+    // Extract JSON from response
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error extracting matching pairs:', error);
+    return null;
+  }
+};
+
+/**
+ * Extract items to order from ordering questions
+ * @param {string} questionText - The question text
+ * @returns {Promise<Object>} - Ordering items structure
+ */
+const extractOrderingItems = async (questionText) => {
+  try {
+    const model = geminiClient.getModel('gemini-1.5-flash');
+
+    const prompt = `
+Extract items to be ordered from this ordering/sequencing question:
+"${questionText}"
+
+Return a JSON object with this structure:
+{
+  "items": ["Item 1", "Item 2", "Item 3", "Item 4"],
+  "correctOrder": [0, 1, 2, 3]
+}
+
+If you cannot identify clear items to order, return null.
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response.text();
+
+    // Extract JSON from response
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error extracting ordering items:', error);
+    return null;
+  }
+};
+
+/**
  * Use AI to extract options for multiple choice questions
  * @param {Array} questions - Array of multiple choice questions
  * @param {string} fullText - The full text of the exam
@@ -284,7 +695,23 @@ const extractQuestionsDirectly = async (text, answerData = { answers: {} }) => {
     console.log(`Pre-loaded answer for question ${questionNumber}: ${answer}`);
   });
 
-  // Initialize the exam structure
+  // Try enhanced AI extraction first
+  try {
+    console.log('Attempting enhanced AI extraction...');
+    const enhancedResult = await extractQuestionsWithEnhancedAI(text, answerData);
+    if (enhancedResult && enhancedResult.sections && enhancedResult.sections.length > 0) {
+      const totalQuestions = enhancedResult.sections.reduce((total, section) => total + section.questions.length, 0);
+      if (totalQuestions > 0) {
+        console.log(`Enhanced AI extraction successful! Found ${totalQuestions} questions`);
+        return enhancedResult;
+      }
+    }
+  } catch (error) {
+    console.error('Enhanced AI extraction failed:', error);
+    console.log('Falling back to basic extraction...');
+  }
+
+  // Initialize the exam structure for fallback
   const examStructure = {
     sections: [
       {
@@ -1868,6 +2295,7 @@ module.exports = {
   parsePdf,
   parseWord,
   extractQuestionsDirectly,
+  extractQuestionsWithEnhancedAI,
   categorizeQuestionsWithAI,
   parseAnswerFile,
   parseExamFile

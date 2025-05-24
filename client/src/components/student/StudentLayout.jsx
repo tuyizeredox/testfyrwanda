@@ -22,7 +22,12 @@ import {
   Badge,
   alpha,
   Collapse,
-  Button
+  Button,
+  Chip,
+  LinearProgress,
+  Zoom,
+  Fade,
+  Slide
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -43,7 +48,14 @@ import {
   History,
   AccountCircle,
   DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon
+  LightMode as LightModeIcon,
+  Star,
+  LocalFireDepartment,
+  TrendingUp,
+  Verified,
+  WorkspacePremium,
+  AutoGraph,
+  Close
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeMode } from '../../context/ThemeContext';
@@ -101,104 +113,309 @@ const StudentLayout = ({ children }) => {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: mode === 'dark' ? alpha(theme.palette.background.paper, 0.9) : '#f8f9fa', // Adaptive background for the drawer
-      borderRight: `1px solid ${mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`, // Adaptive subtle border
-      transition: 'all 0.3s ease'
+      background: mode === 'dark'
+        ? `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.paper, 0.98)} 100%)`
+        : `linear-gradient(180deg, #fafbfc 0%, #f8f9fa 100%)`,
+      borderRight: `1px solid ${mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
+      transition: 'all 0.3s ease',
+      position: 'relative'
     }}>
+      {/* Enhanced Header */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
           padding: theme.spacing(3),
-          background: 'linear-gradient(135deg, #4a148c 0%, #7c43bd 100%)',
+          background: `linear-gradient(135deg,
+            ${theme.palette.primary.dark} 0%,
+            ${theme.palette.primary.main} 50%,
+            ${theme.palette.secondary.main} 100%)`,
           color: 'white',
           position: 'relative',
           overflow: 'hidden',
-          borderRadius: 0, // Remove rounded corners
+          minHeight: 80
         }}
       >
-        {/* Decorative elements */}
+        {/* Enhanced decorative elements */}
         <Box
           sx={{
             position: 'absolute',
-            top: 0,
-            right: 0,
-            width: '100px',
-            height: '100px',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+            top: -30,
+            right: -30,
+            width: '120px',
+            height: '120px',
+            background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)',
             borderRadius: '50%',
-            transform: 'translate(30%, -30%)',
+            animation: 'headerFloat 8s ease-in-out infinite',
+            '@keyframes headerFloat': {
+              '0%': { transform: 'translateY(0px) rotate(0deg)' },
+              '50%': { transform: 'translateY(-10px) rotate(180deg)' },
+              '100%': { transform: 'translateY(0px) rotate(360deg)' }
+            }
           }}
         />
 
-        <Avatar
-          sx={{
-            bgcolor: 'secondary.main',
-            width: 45,
-            height: 45,
-            mr: 2,
-            boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-            border: '2px solid rgba(255,255,255,0.2)',
-          }}
-        >
-          <School sx={{ fontSize: 24 }} />
-        </Avatar>
-        <Typography variant="h6" fontWeight="bold" noWrap sx={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
-          Testify
-        </Typography>
+        {/* Header sparkles */}
+        {[...Array(5)].map((_, i) => (
+          <Box
+            key={i}
+            sx={{
+              position: 'absolute',
+              width: 3,
+              height: 3,
+              borderRadius: '50%',
+              bgcolor: 'rgba(255,255,255,0.8)',
+              top: `${20 + i * 15}%`,
+              left: `${10 + i * 20}%`,
+              animation: `headerSparkle 3s ease-in-out infinite ${i * 0.4}s`,
+              '@keyframes headerSparkle': {
+                '0%, 100%': { opacity: 0, transform: 'scale(0)' },
+                '50%': { opacity: 1, transform: 'scale(1)' }
+              }
+            }}
+          />
+        ))}
+
+        {/* Enhanced logo */}
+        <Box sx={{ position: 'relative' }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: -4,
+              left: -4,
+              right: -4,
+              bottom: -4,
+              borderRadius: '50%',
+              background: `conic-gradient(
+                ${theme.palette.secondary.main} 0deg,
+                ${theme.palette.warning.main} 120deg,
+                ${theme.palette.info.main} 240deg,
+                ${theme.palette.secondary.main} 360deg
+              )`,
+              animation: 'logoRotate 8s linear infinite',
+              '@keyframes logoRotate': {
+                '0%': { transform: 'rotate(0deg)' },
+                '100%': { transform: 'rotate(360deg)' }
+              }
+            }}
+          />
+
+          <Avatar
+            sx={{
+              bgcolor: 'background.paper',
+              color: theme.palette.primary.main,
+              width: 50,
+              height: 50,
+              mr: 2,
+              boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
+              border: '3px solid white',
+              position: 'relative',
+              zIndex: 2,
+              animation: 'logoFloat 6s ease-in-out infinite',
+              '@keyframes logoFloat': {
+                '0%, 100%': { transform: 'translateY(0px)' },
+                '50%': { transform: 'translateY(-4px)' }
+              }
+            }}
+          >
+            <School sx={{ fontSize: 28 }} />
+          </Avatar>
+        </Box>
+
+        <Box sx={{ flex: 1, position: 'relative', zIndex: 1 }}>
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            sx={{
+              textShadow: '0 2px 8px rgba(0,0,0,0.4)',
+              background: 'linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              fontSize: { xs: '1.3rem', sm: '1.5rem' }
+            }}
+          >
+            Testify
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              color: 'rgba(255,255,255,0.9)',
+              fontWeight: 'medium',
+              fontSize: '0.75rem'
+            }}
+          >
+            Student Portal
+          </Typography>
+        </Box>
+
         {isMobile && (
           <IconButton
             onClick={handleDrawerToggle}
             sx={{
-              ml: 'auto',
               color: 'white',
-              bgcolor: 'rgba(255,255,255,0.1)',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+              bgcolor: 'rgba(255,255,255,0.15)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              '&:hover': {
+                bgcolor: 'rgba(255,255,255,0.25)',
+                transform: 'scale(1.05)'
+              },
+              transition: 'all 0.3s ease'
             }}
           >
-            {theme.direction === 'ltr' ? <ChevronLeft /> : <ChevronRight />}
+            <Close />
           </IconButton>
         )}
       </Box>
       <Divider />
 
-      <Box sx={{ p: 3 }}>
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          mb: 2,
-          p: 2,
-          borderRadius: 0, // Remove rounded corners
-          bgcolor: 'primary.lighter',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        }}>
-          <Avatar
-            sx={{
-              width: 60,
-              height: 60,
-              bgcolor: 'secondary.main',
-              boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
-              border: '3px solid white',
-              mr: 2
-            }}
-          >
-            {user?.firstName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'S'}
-          </Avatar>
-          <Box>
-            <Typography variant="subtitle1" fontWeight="bold">
-              {user?.firstName ? `${user.firstName} ${user.lastName}` : user?.email || 'Student'}
-            </Typography>
-            <Typography variant="body2" sx={{
-              color: 'primary.main',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5,
-              fontWeight: 'medium'
-            }}>
-              <School fontSize="small" /> Student
-            </Typography>
+      <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
+        <Fade in={true} timeout={800}>
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            mb: 2,
+            p: { xs: 2, sm: 2.5 },
+            borderRadius: 3,
+            background: `linear-gradient(135deg,
+              ${alpha(theme.palette.primary.main, 0.06)} 0%,
+              ${alpha(theme.palette.secondary.main, 0.06)} 100%)`,
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+            boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.08)}`,
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-1px)',
+              boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.12)}`
+            }
+          }}>
+            {/* Simplified glow effect */}
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                background: `radial-gradient(circle at top left, ${alpha(theme.palette.primary.main, 0.03)} 0%, transparent 60%)`,
+                opacity: 0.7
+              }}
+            />
+
+            {/* Optimized Avatar */}
+            <Box sx={{ position: 'relative', mr: 2 }}>
+              <Avatar
+                sx={{
+                  width: { xs: 48, sm: 52 },
+                  height: { xs: 48, sm: 52 },
+                  bgcolor: theme.palette.primary.main,
+                  color: 'white',
+                  fontSize: { xs: '1.2rem', sm: '1.3rem' },
+                  fontWeight: 'bold',
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                  border: '3px solid white',
+                  position: 'relative',
+                  zIndex: 2
+                }}
+              >
+                {user?.firstName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'S'}
+              </Avatar>
+
+              {/* Status indicator */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  bgcolor: 'success.main',
+                  border: '2px solid white',
+                  boxShadow: `0 0 0 1px ${alpha(theme.palette.success.main, 0.3)}`,
+                  zIndex: 3
+                }}
+              />
+            </Box>
+
+            <Box sx={{ flex: 1, position: 'relative', zIndex: 1, minWidth: 0 }}>
+              <Typography
+                variant="subtitle1"
+                fontWeight="bold"
+                sx={{
+                  fontSize: { xs: '0.95rem', sm: '1rem' },
+                  mb: 0.5,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {user?.firstName ? `${user.firstName} ${user.lastName}` : user?.email || 'Student'}
+              </Typography>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                <Chip
+                  icon={<WorkspacePremium sx={{ fontSize: '0.8rem' }} />}
+                  label="Student"
+                  size="small"
+                  sx={{
+                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                    fontWeight: 'medium',
+                    fontSize: '0.7rem',
+                    height: 20,
+                    borderRadius: 2,
+                    '& .MuiChip-icon': {
+                      color: theme.palette.primary.main
+                    }
+                  }}
+                />
+                <Chip
+                  icon={<Verified sx={{ fontSize: '0.7rem' }} />}
+                  label="Active"
+                  size="small"
+                  sx={{
+                    bgcolor: alpha(theme.palette.success.main, 0.1),
+                    color: theme.palette.success.main,
+                    fontWeight: 'medium',
+                    fontSize: '0.65rem',
+                    height: 18,
+                    borderRadius: 2,
+                    '& .MuiChip-icon': {
+                      color: theme.palette.success.main
+                    }
+                  }}
+                />
+              </Box>
+
+              {/* Compact progress indicator */}
+              <Box sx={{ mt: 0.5 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight="medium" sx={{ fontSize: '0.7rem' }}>
+                    Progress
+                  </Typography>
+                  <Typography variant="caption" color="primary.main" fontWeight="bold" sx={{ fontSize: '0.7rem' }}>
+                    75%
+                  </Typography>
+                </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={75}
+                  sx={{
+                    height: 4,
+                    borderRadius: 2,
+                    bgcolor: alpha(theme.palette.grey[300], 0.3),
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 2,
+                      background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`
+                    }
+                  }}
+                />
+              </Box>
+            </Box>
           </Box>
-        </Box>
+        </Fade>
       </Box>
 
       <Divider />
@@ -217,70 +434,175 @@ const StudentLayout = ({ children }) => {
           zIndex: 0
         }
       }}>
-        <Typography
-          variant="overline"
-          sx={{
+        <Fade in={true} timeout={600}>
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
             pl: 2,
-            opacity: 0.7,
-            fontWeight: 'bold',
-            letterSpacing: 1,
-            display: 'block',
-            mb: 1
-          }}
-        >
-          MAIN MENU
-        </Typography>
-
-        <ListItem disablePadding sx={{ mb: 1 }}>
-          <ListItemButton
-            component={RouterLink}
-            to="/student/dashboard"
-            selected={isActive('/student/dashboard') || isActive('/student')}
-            sx={{
-              borderRadius: 0, // Remove rounded corners
-              py: 1.5, // Increase padding for better touch targets
-              mb: 0.5, // Add margin between items
-              '&.Mui-selected': {
-                background: 'linear-gradient(90deg, rgba(74, 20, 140, 0.1) 0%, rgba(74, 20, 140, 0.2) 100%)',
-                color: 'primary.main',
-                borderLeft: '4px solid', // Add left border for selected items
-                borderColor: 'primary.main',
-                '&:hover': {
-                  background: 'linear-gradient(90deg, rgba(74, 20, 140, 0.15) 0%, rgba(74, 20, 140, 0.25) 100%)',
-                },
-                '& .MuiListItemIcon-root': {
-                  color: 'primary.main',
-                },
-                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-              },
-              '&:hover': {
-                background: 'rgba(0, 0, 0, 0.04)',
-                borderLeft: '4px solid', // Add left border on hover
-                borderColor: 'rgba(74, 20, 140, 0.3)',
-              },
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <ListItemIcon>
-              <Avatar
-                sx={{
-                  bgcolor: isActive('/student/dashboard') || isActive('/student') ? 'primary.lighter' : 'transparent',
-                  color: isActive('/student/dashboard') || isActive('/student') ? 'primary.main' : 'action.active',
-                  width: 32,
-                  height: 32,
-                }}
-              >
-                <DashboardIcon fontSize="small" />
-              </Avatar>
-            </ListItemIcon>
-            <ListItemText
-              primary="Dashboard"
-              primaryTypographyProps={{
-                fontWeight: isActive('/student/dashboard') || isActive('/student') ? 'bold' : 'medium'
+            mb: 2,
+            mt: 1
+          }}>
+            <Box
+              sx={{
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                animation: 'menuIconRotate 8s linear infinite',
+                '@keyframes menuIconRotate': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' }
+                }
               }}
-            />
-          </ListItemButton>
-        </ListItem>
+            >
+              <Star sx={{ fontSize: '0.8rem', color: 'white' }} />
+            </Box>
+            <Typography
+              variant="overline"
+              sx={{
+                opacity: 0.8,
+                fontWeight: 'bold',
+                letterSpacing: 1.2,
+                fontSize: '0.75rem',
+                background: `linear-gradient(135deg, ${theme.palette.text.primary}, ${alpha(theme.palette.text.primary, 0.7)})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}
+            >
+              MAIN MENU
+            </Typography>
+          </Box>
+        </Fade>
+
+        <Zoom in={true} style={{ transitionDelay: '100ms' }}>
+          <ListItem disablePadding sx={{ mb: 1.5 }}>
+            <ListItemButton
+              component={RouterLink}
+              to="/student/dashboard"
+              selected={isActive('/student/dashboard') || isActive('/student')}
+              sx={{
+                borderRadius: 3,
+                py: 2,
+                px: 2,
+                position: 'relative',
+                overflow: 'hidden',
+                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)}, ${alpha(theme.palette.secondary.main, 0.05)})`,
+                  opacity: 0,
+                  transition: 'opacity 0.3s ease'
+                },
+                '&.Mui-selected': {
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.12)}, ${alpha(theme.palette.primary.light, 0.08)})`,
+                  color: 'primary.main',
+                  borderLeft: '4px solid',
+                  borderColor: 'primary.main',
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}`,
+                  transform: 'translateX(4px)',
+                  '&:hover': {
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.primary.light, 0.1)})`,
+                    transform: 'translateX(6px) scale(1.02)',
+                  },
+                  '& .MuiListItemIcon-root': {
+                    color: 'primary.main',
+                    transform: 'scale(1.1)'
+                  },
+                  '&::before': {
+                    opacity: 1
+                  }
+                },
+                '&:hover': {
+                  background: alpha(theme.palette.primary.main, 0.06),
+                  transform: 'translateX(6px) scale(1.02)',
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`,
+                  '&::before': {
+                    opacity: 1
+                  }
+                }
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 48, transition: 'all 0.3s ease' }}>
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: isActive('/student/dashboard') || isActive('/student')
+                      ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.primary.light, 0.1)})`
+                      : alpha(theme.palette.grey[100], 0.5),
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    '&::after': isActive('/student/dashboard') || isActive('/student') ? {
+                      content: '""',
+                      position: 'absolute',
+                      top: 0,
+                      left: '-100%',
+                      width: '100%',
+                      height: '100%',
+                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+                      animation: 'iconShine 2s ease-in-out infinite',
+                      '@keyframes iconShine': {
+                        '0%': { left: '-100%' },
+                        '100%': { left: '100%' }
+                      }
+                    } : {}
+                  }}
+                >
+                  <DashboardIcon
+                    sx={{
+                      fontSize: '1.2rem',
+                      color: isActive('/student/dashboard') || isActive('/student') ? 'primary.main' : 'text.secondary',
+                      transition: 'all 0.3s ease'
+                    }}
+                  />
+                </Box>
+              </ListItemIcon>
+              <ListItemText
+                primary="Dashboard"
+                primaryTypographyProps={{
+                  fontWeight: isActive('/student/dashboard') || isActive('/student') ? 'bold' : 'medium',
+                  fontSize: '0.95rem',
+                  transition: 'all 0.3s ease'
+                }}
+              />
+
+              {/* Active indicator */}
+              {(isActive('/student/dashboard') || isActive('/student')) && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    right: 12,
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    bgcolor: theme.palette.primary.main,
+                    boxShadow: `0 0 8px ${theme.palette.primary.main}`,
+                    animation: 'activeIndicator 2s ease-in-out infinite',
+                    '@keyframes activeIndicator': {
+                      '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+                      '50%': { opacity: 0.7, transform: 'scale(1.2)' }
+                    }
+                  }}
+                />
+              )}
+            </ListItemButton>
+          </ListItem>
+        </Zoom>
 
         <ListItem disablePadding sx={{ mb: 1 }}>
           <ListItemButton
@@ -438,92 +760,197 @@ const StudentLayout = ({ children }) => {
           </List>
         </Collapse>
 
-        <Typography
-          variant="overline"
-          sx={{
+        <Fade in={true} timeout={800}>
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
             pl: 2,
-            opacity: 0.7,
-            fontWeight: 'bold',
-            letterSpacing: 1,
-            display: 'block',
-            mt: 3,
-            mb: 1
-          }}
-        >
-          ACCOUNT
-        </Typography>
-
-        <ListItem disablePadding sx={{ mb: 1 }}>
-          <ListItemButton
-            component={RouterLink}
-            to="/student/profile"
-            selected={isActive('/student/profile')}
-            sx={{
-              borderRadius: 0, // Remove rounded corners
-              py: 1.5, // Increase padding for better touch targets
-              mb: 0.5, // Add margin between items
-              '&.Mui-selected': {
-                background: 'linear-gradient(90deg, rgba(74, 20, 140, 0.1) 0%, rgba(74, 20, 140, 0.2) 100%)',
-                color: 'primary.main',
-                borderLeft: '4px solid', // Add left border for selected items
-                borderColor: 'primary.main',
-                '&:hover': {
-                  background: 'linear-gradient(90deg, rgba(74, 20, 140, 0.15) 0%, rgba(74, 20, 140, 0.25) 100%)',
-                },
-                '& .MuiListItemIcon-root': {
-                  color: 'primary.main',
-                },
-                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-              },
-              '&:hover': {
-                background: 'rgba(0, 0, 0, 0.04)',
-                borderLeft: '4px solid', // Add left border on hover
-                borderColor: 'rgba(74, 20, 140, 0.3)',
-              },
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <ListItemIcon>
-              <Avatar
-                sx={{
-                  bgcolor: isActive('/student/profile') ? 'primary.lighter' : 'transparent',
-                  color: isActive('/student/profile') ? 'primary.main' : 'action.active',
-                  width: 32,
-                  height: 32,
-                }}
-              >
-                <Person fontSize="small" />
-              </Avatar>
-            </ListItemIcon>
-            <ListItemText
-              primary="Profile"
-              primaryTypographyProps={{
-                fontWeight: isActive('/student/profile') ? 'bold' : 'medium'
+            mb: 2,
+            mt: 2
+          }}>
+            <Box
+              sx={{
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${theme.palette.info.main})`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
-            />
-          </ListItemButton>
-        </ListItem>
+            >
+              <Person sx={{ fontSize: '0.7rem', color: 'white' }} />
+            </Box>
+            <Typography
+              variant="overline"
+              sx={{
+                opacity: 0.8,
+                fontWeight: 'bold',
+                letterSpacing: 1.2,
+                fontSize: '0.75rem',
+                background: `linear-gradient(135deg, ${theme.palette.text.primary}, ${alpha(theme.palette.text.primary, 0.7)})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}
+            >
+              ACCOUNT
+            </Typography>
+          </Box>
+        </Fade>
 
-        <Box sx={{ px: 2, mt: 4, mb: 2 }}>
-          <Button
-            fullWidth
-            variant="contained"
-            color="error"
-            onClick={handleLogout}
-            startIcon={<Logout />}
-            sx={{
-              py: 1.5, // Increase padding for better touch targets
-              borderRadius: 0, // Remove rounded corners
-              boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-              '&:hover': {
-                boxShadow: '0 6px 15px rgba(0,0,0,0.15)',
-                transform: 'translateY(-2px)'
-              },
-              transition: 'all 0.2s ease',
-            }}
-          >
-            Logout
-          </Button>
+        <Zoom in={true} style={{ transitionDelay: '300ms' }}>
+          <ListItem disablePadding sx={{ mb: 1.5 }}>
+            <ListItemButton
+              component={RouterLink}
+              to="/student/profile"
+              selected={isActive('/student/profile')}
+              sx={{
+                borderRadius: 3,
+                py: 2,
+                px: 2,
+                position: 'relative',
+                overflow: 'hidden',
+                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.05)}, ${alpha(theme.palette.info.main, 0.05)})`,
+                  opacity: 0,
+                  transition: 'opacity 0.3s ease'
+                },
+                '&.Mui-selected': {
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.12)}, ${alpha(theme.palette.secondary.light, 0.08)})`,
+                  color: 'secondary.main',
+                  borderLeft: '4px solid',
+                  borderColor: 'secondary.main',
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.secondary.main, 0.2)}`,
+                  transform: 'translateX(4px)',
+                  '&:hover': {
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.15)}, ${alpha(theme.palette.secondary.light, 0.1)})`,
+                    transform: 'translateX(6px) scale(1.02)',
+                  },
+                  '& .MuiListItemIcon-root': {
+                    color: 'secondary.main',
+                    transform: 'scale(1.1)'
+                  },
+                  '&::before': {
+                    opacity: 1
+                  }
+                },
+                '&:hover': {
+                  background: alpha(theme.palette.secondary.main, 0.06),
+                  transform: 'translateX(6px) scale(1.02)',
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.secondary.main, 0.1)}`,
+                  '&::before': {
+                    opacity: 1
+                  }
+                }
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 48, transition: 'all 0.3s ease' }}>
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: isActive('/student/profile')
+                      ? `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.15)}, ${alpha(theme.palette.secondary.light, 0.1)})`
+                      : alpha(theme.palette.grey[100], 0.5),
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <Person
+                    sx={{
+                      fontSize: '1.2rem',
+                      color: isActive('/student/profile') ? 'secondary.main' : 'text.secondary',
+                      transition: 'all 0.3s ease'
+                    }}
+                  />
+                </Box>
+              </ListItemIcon>
+              <ListItemText
+                primary="Profile"
+                primaryTypographyProps={{
+                  fontWeight: isActive('/student/profile') ? 'bold' : 'medium',
+                  fontSize: '0.95rem',
+                  transition: 'all 0.3s ease'
+                }}
+              />
+
+              {/* Active indicator */}
+              {isActive('/student/profile') && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    right: 12,
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    bgcolor: theme.palette.secondary.main,
+                    boxShadow: `0 0 8px ${theme.palette.secondary.main}`,
+                    animation: 'activeIndicator 2s ease-in-out infinite',
+                    '@keyframes activeIndicator': {
+                      '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+                      '50%': { opacity: 0.7, transform: 'scale(1.2)' }
+                    }
+                  }}
+                />
+              )}
+            </ListItemButton>
+          </ListItem>
+        </Zoom>
+
+        <Box sx={{ px: 2, mt: 3, mb: 2 }}>
+          <Zoom in={true} style={{ transitionDelay: '400ms' }}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="error"
+              onClick={handleLogout}
+              startIcon={<Logout />}
+              sx={{
+                py: 1.8,
+                borderRadius: 3,
+                fontWeight: 'bold',
+                fontSize: '0.9rem',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: `0 4px 12px ${alpha(theme.palette.error.main, 0.3)}`,
+                transition: 'all 0.3s ease',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: '-100%',
+                  width: '100%',
+                  height: '100%',
+                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                  transition: 'all 0.6s ease'
+                },
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: `0 6px 16px ${alpha(theme.palette.error.main, 0.4)}`,
+                  '&::before': {
+                    left: '100%'
+                  }
+                },
+                '&:active': {
+                  transform: 'translateY(0px)'
+                }
+              }}
+            >
+              Logout
+            </Button>
+          </Zoom>
         </Box>
       </List>
     </Box>
@@ -542,8 +969,8 @@ const StudentLayout = ({ children }) => {
             ? 'linear-gradient(135deg, #2c1a4d 0%, #3a2063 100%)'
             : 'linear-gradient(135deg, #4a148c 0%, #7c43bd 100%)',
           color: 'white',
-          borderRadius: 0, // Remove rounded corners
-          borderBottom: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)'}`, // Add subtle border
+          borderRadius: 0,
+          borderBottom: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)'}`,
           transition: 'all 0.3s ease'
         }}
       >

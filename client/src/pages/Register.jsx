@@ -25,7 +25,10 @@ import {
   alpha,
   useMediaQuery,
   Card,
-  CardContent
+  CardContent,
+  Snackbar,
+  CircularProgress,
+  LinearProgress
 } from '@mui/material';
 import {
   School,
@@ -39,7 +42,10 @@ import {
   HowToReg,
   CheckCircle,
   ArrowForward,
-  ArrowBack
+  ArrowBack,
+  ErrorOutline,
+  WarningAmber,
+  InfoOutlined
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../context/ThemeContext';
@@ -124,6 +130,13 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [animationComplete, setAnimationComplete] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
+  const [registrationProgress, setRegistrationProgress] = useState(0);
+  const [validationErrors, setValidationErrors] = useState({});
 
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -140,31 +153,84 @@ const Register = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleNext = () => {
-    if (activeStep === 0) {
-      // Validate first step
-      if (!email || !password || !confirmPassword) {
-        setError('Please fill in all required fields');
-        return;
+  const validateStep = (step) => {
+    const errors = {};
+
+    if (step === 0) {
+      // Email validation
+      if (!email) {
+        errors.email = 'Email is required';
+      } else {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          errors.email = 'Please enter a valid email address';
+        }
       }
-      if (password !== confirmPassword) {
-        setError('Passwords do not match');
-        return;
+
+      // Password validation
+      if (!password) {
+        errors.password = 'Password is required';
+      } else if (password.length < 6) {
+        errors.password = 'Password must be at least 6 characters long';
+      } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+        errors.password = 'Password must contain at least one uppercase letter, one lowercase letter, and one number';
       }
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters long');
-        return;
+
+      // Confirm password validation
+      if (!confirmPassword) {
+        errors.confirmPassword = 'Please confirm your password';
+      } else if (password !== confirmPassword) {
+        errors.confirmPassword = 'Passwords do not match';
       }
-    } else if (activeStep === 1) {
-      // Validate second step
-      if (!firstName || !lastName) {
-        setError('Please fill in all required fields');
-        return;
+    } else if (step === 1) {
+      // Name validation
+      if (!firstName) {
+        errors.firstName = 'First name is required';
+      } else if (firstName.length < 2) {
+        errors.firstName = 'First name must be at least 2 characters long';
+      }
+
+      if (!lastName) {
+        errors.lastName = 'Last name is required';
+      } else if (lastName.length < 2) {
+        errors.lastName = 'Last name must be at least 2 characters long';
+      }
+
+      // Phone validation (optional but if provided, should be valid)
+      if (phone && !/^\+?[\d\s\-\(\)]{10,}$/.test(phone)) {
+        errors.phone = 'Please enter a valid phone number';
       }
     }
 
+    return errors;
+  };
+
+  const handleNext = () => {
+    const errors = validateStep(activeStep);
+    setValidationErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      const errorMessages = Object.values(errors);
+      setError(errorMessages[0]);
+      setSnackbar({
+        open: true,
+        message: `Please fix the errors before continuing`,
+        severity: 'warning'
+      });
+      return;
+    }
+
     setError('');
-    setActiveStep((prevStep) => prevStep + 1);
+    setValidationErrors({});
+    setSnackbar({
+      open: true,
+      message: activeStep === 0 ? 'Account details validated!' : 'Personal details validated!',
+      severity: 'success'
+    });
+
+    setTimeout(() => {
+      setActiveStep((prevStep) => prevStep + 1);
+    }, 500);
   };
 
   const handleBack = () => {
@@ -174,25 +240,35 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Clear previous errors
     setError('');
+    setValidationErrors({});
+    setSnackbar({ open: false, message: '', severity: 'info' });
 
-    // Validate passwords match
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
+    // Final validation
+    const step0Errors = validateStep(0);
+    const step1Errors = validateStep(1);
+    const allErrors = { ...step0Errors, ...step1Errors };
 
-    // Validate password length
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (Object.keys(allErrors).length > 0) {
+      setValidationErrors(allErrors);
+      setError('Please fix all validation errors before submitting');
+      setSnackbar({
+        open: true,
+        message: 'Please review and fix the errors',
+        severity: 'error'
+      });
+      setActiveStep(0); // Go back to first step to fix errors
       return;
     }
 
     setLoading(true);
+    setRegistrationProgress(0);
 
     try {
       // Send all required fields to the register function
-      await register({
+      const user = await register({
         email,
         password,
         firstName,
@@ -201,14 +277,99 @@ const Register = () => {
         phone
       });
 
-      // Instead of showing the completion step, redirect directly to admin dashboard
-      navigate('/admin');
+      // Show success message immediately
+      setSnackbar({
+        open: true,
+        message: `Welcome to Testify, ${firstName}! Account created successfully.`,
+        severity: 'success'
+      });
+
+      // Quick progress animation for success
+      setRegistrationProgress(100);
+
+      // Redirect quickly after success
+      setTimeout(() => {
+        navigate('/admin');
+      }, 1200);
+
     } catch (err) {
       console.error('Registration error:', err);
-      setError(err.message || 'Failed to create an account. Please try again.');
+      setRegistrationProgress(0);
+
+      // Immediately show error message without delay
+      let errorMessage = 'Failed to create account. Please try again.';
+      let snackbarMessage = 'Registration failed';
+
+      if (err.response) {
+        // Server responded with error status
+        switch (err.response.status) {
+          case 400:
+            errorMessage = 'Invalid registration data. Please check your information and try again.';
+            snackbarMessage = 'Invalid data - Please check your information';
+            break;
+          case 409:
+            errorMessage = 'An account with this email already exists. Please use a different email or try logging in.';
+            snackbarMessage = 'Email already exists - Please use a different email';
+            break;
+          case 422:
+            errorMessage = 'Please check your input data. Some fields may contain invalid information.';
+            snackbarMessage = 'Validation error - Please check your input';
+            break;
+          case 500:
+            errorMessage = 'Server error. Please try again later or contact support.';
+            snackbarMessage = 'Server error - Please try again later';
+            break;
+          default:
+            errorMessage = err.response.data?.message || errorMessage;
+            snackbarMessage = 'Registration failed';
+        }
+      } else if (err.request) {
+        // Network error
+        errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
+        snackbarMessage = 'Connection failed - Check your internet connection';
+      } else if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        // Timeout error
+        errorMessage = 'Request timed out. The server may be slow or unavailable.';
+        snackbarMessage = 'Request timeout';
+      } else {
+        // Other error
+        errorMessage = err.message || errorMessage;
+        snackbarMessage = 'Registration failed';
+      }
+
+      // Show error immediately
+      setError(errorMessage);
+      setSnackbar({
+        open: true,
+        message: snackbarMessage,
+        severity: 'error'
+      });
+
+      // Go back to first step to allow user to fix issues
       setActiveStep(0);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  const getSnackbarIcon = (severity) => {
+    switch (severity) {
+      case 'success':
+        return <CheckCircle />;
+      case 'error':
+        return <ErrorOutline />;
+      case 'warning':
+        return <WarningAmber />;
+      case 'info':
+      default:
+        return <InfoOutlined />;
     }
   };
 
@@ -228,6 +389,8 @@ const Register = () => {
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              error={!!validationErrors.email}
+              helperText={validationErrors.email}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -249,6 +412,8 @@ const Register = () => {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              error={!!validationErrors.password}
+              helperText={validationErrors.password || 'Must contain uppercase, lowercase, and number'}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -281,6 +446,8 @@ const Register = () => {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              error={!!validationErrors.confirmPassword}
+              helperText={validationErrors.confirmPassword}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -320,6 +487,8 @@ const Register = () => {
                   autoComplete="given-name"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
+                  error={!!validationErrors.firstName}
+                  helperText={validationErrors.firstName}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -340,6 +509,8 @@ const Register = () => {
                   autoComplete="family-name"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
+                  error={!!validationErrors.lastName}
+                  helperText={validationErrors.lastName}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -379,6 +550,8 @@ const Register = () => {
               autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              error={!!validationErrors.phone}
+              helperText={validationErrors.phone || 'Optional - Include country code if international'}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -800,6 +973,7 @@ const Register = () => {
                     color="primary"
                     onClick={handleSubmit}
                     disabled={loading}
+                    startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <HowToReg />}
                     sx={{
                       borderRadius: '50px',
                       px: { xs: 3, sm: 4, md: 5 },
@@ -814,6 +988,9 @@ const Register = () => {
                         boxShadow: '0 15px 30px rgba(74, 20, 140, 0.4)',
                         transform: 'translateY(-2px)',
                         background: `linear-gradient(45deg, ${theme.palette.primary.dark}, ${theme.palette.primary.main})`,
+                      },
+                      '&.Mui-disabled': {
+                        background: alpha(theme.palette.primary.main, 0.6),
                       }
                     }}
                   >
@@ -847,6 +1024,37 @@ const Register = () => {
               </Box>
             )}
           </Box>
+
+          {/* Progress indicator for registration */}
+          {loading && (
+            <Fade in={loading}>
+              <Box sx={{ width: '100%', mt: 3, mb: 2 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={registrationProgress}
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 4,
+                      background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                    }
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', textAlign: 'center', mt: 1, fontWeight: 500 }}
+                >
+                  {registrationProgress < 30 ? 'Creating account...' :
+                   registrationProgress < 60 ? 'Validating details...' :
+                   registrationProgress < 90 ? 'Setting up profile...' :
+                   'Almost ready...'}
+                </Typography>
+              </Box>
+            </Fade>
+          )}
 
           {activeStep === 0 && (
             <Zoom in={true} style={{ transitionDelay: '1000ms' }}>
@@ -897,6 +1105,33 @@ const Register = () => {
       </Container>
 
       <AuthFooter />
+
+      {/* Enhanced Snackbar for user feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={snackbar.severity === 'error' ? 8000 : snackbar.severity === 'success' ? 4000 : 5000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: 8 }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          variant="filled"
+          icon={getSnackbarIcon(snackbar.severity)}
+          sx={{
+            width: '100%',
+            borderRadius: 2,
+            fontWeight: 500,
+            boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+            '& .MuiAlert-icon': {
+              fontSize: '1.5rem'
+            }
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

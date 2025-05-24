@@ -51,17 +51,29 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Login function
+  // Login function with 5-second timeout
   const login = async (userData) => {
     try {
       setLoading(true);
       setError(null);
 
-      // Make API call to login endpoint using axios
-      const response = await api.post('/auth/login', {
+      // Create a timeout promise that rejects after 5 seconds
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Login timeout: The request took too long to complete. Please check your credentials and internet connection, then try again.'));
+        }, 5000); // 5 seconds timeout
+      });
+
+      // Create the login request promise
+      const loginPromise = api.post('/auth/login', {
         email: userData.email,
         password: userData.password,
+      }, {
+        timeout: 5000 // 5 seconds timeout for axios as well
       });
+
+      // Race between the login request and the timeout
+      const response = await Promise.race([loginPromise, timeoutPromise]);
 
       // Create user object from response
       const user = {
@@ -81,7 +93,19 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       return user;
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Login failed';
+      let errorMessage = 'Login failed';
+
+      // Handle different types of errors
+      if (err.message && err.message.includes('timeout')) {
+        errorMessage = err.message;
+      } else if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        errorMessage = 'Login timeout: The request took too long to complete. Please check your credentials and internet connection, then try again.';
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
       setError(errorMessage);
       setLoading(false);
       throw new Error(errorMessage);
@@ -94,7 +118,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      // Make API call to register endpoint using axios
+      // Make API call to register endpoint using axios with optimized timeout for faster response
       const response = await api.post('/auth/register', {
         email: userData.email,
         password: userData.password,
@@ -102,6 +126,8 @@ export const AuthProvider = ({ children }) => {
         lastName: userData.lastName || '',
         institution: userData.institution || '',
         phone: userData.phone || '',
+      }, {
+        timeout: 3000 // 3 seconds timeout for faster error feedback
       });
 
       // Create user object from response

@@ -19,7 +19,8 @@ import {
   InputAdornment,
   IconButton,
   Fade,
-  Zoom
+  Zoom,
+  Snackbar
 } from '@mui/material';
 import {
   LockOutlined,
@@ -29,7 +30,12 @@ import {
   VisibilityOff,
   Security,
   CheckCircle,
-  ArrowBack
+  ArrowBack,
+  Timer,
+  Assessment,
+  ErrorOutline,
+  WarningAmber,
+  InfoOutlined
 } from '@mui/icons-material';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -39,6 +45,15 @@ const Login = () => {
   const [showError, setShowError] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [animationComplete, setAnimationComplete] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [isLockedOut, setIsLockedOut] = useState(false);
+  const [lockoutEndTime, setLockoutEndTime] = useState(null);
+  const [remainingTime, setRemainingTime] = useState(0);
   const { login, error, loading } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -51,21 +66,246 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Check for existing lockout on component mount
+  useEffect(() => {
+    const storedLockoutEnd = localStorage.getItem('authLoginLockoutEnd');
+    const storedFailedAttempts = localStorage.getItem('authLoginFailedAttempts');
+
+    if (storedLockoutEnd) {
+      const lockoutEnd = new Date(storedLockoutEnd);
+      const now = new Date();
+
+      if (now < lockoutEnd) {
+        setIsLockedOut(true);
+        setLockoutEndTime(lockoutEnd);
+        setRemainingTime(Math.ceil((lockoutEnd - now) / 1000));
+      } else {
+        localStorage.removeItem('authLoginLockoutEnd');
+        localStorage.removeItem('authLoginFailedAttempts');
+      }
+    }
+
+    if (storedFailedAttempts) {
+      setFailedAttempts(parseInt(storedFailedAttempts, 10));
+    }
+  }, []);
+
+  // Countdown timer for lockout
+  useEffect(() => {
+    let interval;
+    if (isLockedOut && remainingTime > 0) {
+      interval = setInterval(() => {
+        setRemainingTime(prev => {
+          if (prev <= 1) {
+            setIsLockedOut(false);
+            setLockoutEndTime(null);
+            setFailedAttempts(0);
+            localStorage.removeItem('authLoginLockoutEnd');
+            localStorage.removeItem('authLoginFailedAttempts');
+            setSnackbar({
+              open: true,
+              message: 'Lockout expired. You can now try logging in again.',
+              severity: 'info'
+            });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isLockedOut, remainingTime]);
+
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleLockout = () => {
+    const lockoutDuration = Math.min(300, 60 * Math.pow(2, Math.max(0, failedAttempts - 2)));
+    const lockoutEnd = new Date(Date.now() + lockoutDuration * 1000);
+
+    setIsLockedOut(true);
+    setLockoutEndTime(lockoutEnd);
+    setRemainingTime(lockoutDuration);
+
+    localStorage.setItem('authLoginLockoutEnd', lockoutEnd.toISOString());
+    localStorage.setItem('authLoginFailedAttempts', failedAttempts.toString());
+
+    setSnackbar({
+      open: true,
+      message: `Too many failed attempts. Please wait ${formatTime(lockoutDuration)} before trying again.`,
+      severity: 'error'
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setShowError(false);
+    setSnackbar({ open: false, message: '', severity: 'info' });
+
+    // Check if user is locked out
+    if (isLockedOut) {
+      setSnackbar({
+        open: true,
+        message: `Account temporarily locked. Please wait ${formatTime(remainingTime)} before trying again.`,
+        severity: 'error'
+      });
+      return;
+    }
+
+    // Basic validation
+    if (!username || !password) {
+      setShowError(true);
+      setSnackbar({
+        open: true,
+        message: 'Please enter both username and password',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // Show initial login message
+    setSnackbar({
+      open: true,
+      message: 'Logging in... Please wait (will timeout in 5 seconds if credentials are invalid)',
+      severity: 'info'
+    });
 
     try {
-      await login(username, password);
-      navigate('/');
+      await login({ email: username, password });
+
+      // Reset failed attempts on successful login
+      setFailedAttempts(0);
+      localStorage.removeItem('authLoginFailedAttempts');
+      localStorage.removeItem('authLoginLockoutEnd');
+
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: 'Login successful! Redirecting...',
+        severity: 'success'
+      });
+
+      setTimeout(() => {
+        navigate('/');
+      }, 400); // Reduced from 800ms to 400ms for faster navigation
     } catch (err) {
       setShowError(true);
       console.error('Login error:', err);
+
+      // Track failed attempts for authentication errors
+      let shouldTrackFailure = false;
+      let errorMessage = 'Login failed. Please check your credentials.';
+
+      // Handle timeout errors specifically
+      if (err.message && err.message.includes('timeout')) {
+        errorMessage = err.message;
+        shouldTrackFailure = false; // Don't track timeout as failed attempt
+      } else if (err.message && err.message.includes('Invalid credentials')) {
+        shouldTrackFailure = true;
+        errorMessage = 'Invalid credentials. Please check your username and password.';
+      } else if (err.message && err.message.includes('blocked')) {
+        errorMessage = 'Your account has been blocked. Please contact an administrator.';
+        shouldTrackFailure = false;
+      } else if (err.message && err.message.includes('Server error')) {
+        errorMessage = 'Server error. Please try again later.';
+        shouldTrackFailure = false;
+      } else if (err.message) {
+        // Check if it's a credential error
+        if (err.message.toLowerCase().includes('credential') ||
+            err.message.toLowerCase().includes('password') ||
+            err.message.toLowerCase().includes('email')) {
+          shouldTrackFailure = true;
+        }
+        errorMessage = err.message;
+      }
+
+      if (err.response) {
+        switch (err.response.status) {
+          case 401:
+            errorMessage = 'Invalid credentials - Please check your username and password';
+            shouldTrackFailure = true;
+            break;
+          case 403:
+            errorMessage = 'Account disabled - Contact your administrator';
+            break;
+          case 404:
+            errorMessage = 'Account not found - Please check your username';
+            shouldTrackFailure = true;
+            break;
+          case 429:
+            errorMessage = 'Too many attempts - Please wait before trying again';
+            break;
+          case 500:
+            errorMessage = 'Server error - Please try again later';
+            break;
+          default:
+            errorMessage = err.response.data?.message || 'Login failed. Please try again.';
+            shouldTrackFailure = true;
+        }
+      } else if (err.request) {
+        errorMessage = 'Connection failed - Check your internet connection';
+      } else if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        errorMessage = 'Request timeout - Server is taking too long to respond';
+      } else {
+        errorMessage = err.message || 'Login failed. Please try again.';
+        shouldTrackFailure = true;
+      }
+
+      // Track failed attempts and handle lockout
+      if (shouldTrackFailure) {
+        const newFailedAttempts = failedAttempts + 1;
+        setFailedAttempts(newFailedAttempts);
+        localStorage.setItem('authLoginFailedAttempts', newFailedAttempts.toString());
+
+        // Check if lockout should be triggered (after 3 failed attempts)
+        if (newFailedAttempts >= 3) {
+          handleLockout();
+          return;
+        } else {
+          // Show warning about remaining attempts
+          const remainingAttempts = 3 - newFailedAttempts;
+          errorMessage += ` (${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining)`;
+        }
+      }
+
+      // Show error message immediately
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error'
+      });
     }
   };
 
   const handleTogglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  const getSnackbarIcon = (severity) => {
+    switch (severity) {
+      case 'success':
+        return <CheckCircle />;
+      case 'error':
+        return <ErrorOutline />;
+      case 'warning':
+        return <WarningAmber />;
+      case 'info':
+      default:
+        return <InfoOutlined />;
+    }
   };
 
   return (
@@ -332,6 +572,33 @@ const Login = () => {
           </Fade>
         </Grid>
       </Grid>
+
+      {/* Enhanced Snackbar for user feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={snackbar.severity === 'error' ? 8000 : snackbar.severity === 'success' ? 3000 : 5000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: 8 }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          variant="filled"
+          icon={getSnackbarIcon(snackbar.severity)}
+          sx={{
+            width: '100%',
+            borderRadius: 2,
+            fontWeight: 500,
+            boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+            '& .MuiAlert-icon': {
+              fontSize: '1.5rem'
+            }
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

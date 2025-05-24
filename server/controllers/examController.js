@@ -6,6 +6,7 @@ const Question = require('../models/Question');
 const Result = require('../models/Result');
 const { parseExamFile } = require('../utils/fileParser');
 const { gradeOpenEndedAnswer } = require('../utils/aiGrading');
+const { gradeQuestionByType } = require('../utils/enhancedGrading');
 
 /**
  * Check if an exam has extracted content
@@ -904,12 +905,44 @@ const startExam = async (req, res) => {
   }
 };
 
-// @desc    Submit an answer
+// @desc    Submit an answer with enhanced validation and error handling
 // @route   POST /api/exam/:id/answer
 // @access  Private/Student
 const submitAnswer = async (req, res) => {
   try {
-    const { questionId, selectedOption, textAnswer } = req.body;
+    const { questionId, selectedOption, textAnswer, questionType, matchingAnswers, orderingAnswer, dragDropAnswer } = req.body;
+
+    console.log('Received answer submission:', {
+      questionId,
+      selectedOption,
+      textAnswer,
+      questionType,
+      hasMatchingAnswers: !!matchingAnswers,
+      hasOrderingAnswer: !!orderingAnswer,
+      hasDragDropAnswer: !!dragDropAnswer
+    });
+
+    // Import validation utilities
+    const { validateAnswerSubmission, sanitizeAnswerData } = require('../utils/examSubmissionValidator');
+
+    // Sanitize input data
+    const sanitizedData = sanitizeAnswerData({
+      questionId,
+      selectedOption,
+      textAnswer,
+      questionType,
+      matchingAnswers,
+      orderingAnswer,
+      dragDropAnswer
+    });
+
+    // Enhanced input validation
+    if (!sanitizedData.questionId) {
+      return res.status(400).json({
+        message: 'Question ID is required',
+        success: false
+      });
+    }
 
     // Find the result for this student and exam
     const result = await Result.findOne({
@@ -919,32 +952,66 @@ const submitAnswer = async (req, res) => {
     });
 
     if (!result) {
-      return res.status(404).json({ message: 'Exam session not found or already completed' });
+      return res.status(404).json({
+        message: 'Exam session not found or already completed',
+        success: false
+      });
     }
 
-    // Find the question
-    const question = await Question.findById(questionId);
+    // Find the question with better error handling
+    const question = await Question.findById(sanitizedData.questionId);
 
     if (!question) {
-      return res.status(404).json({ message: 'Question not found' });
+      return res.status(404).json({
+        message: 'Question not found',
+        success: false
+      });
+    }
+
+    // Validate the answer submission
+    const answerValidation = validateAnswerSubmission(sanitizedData, question);
+    if (!answerValidation.success) {
+      return res.status(400).json({
+        message: 'Answer validation failed',
+        errors: answerValidation.errors,
+        warnings: answerValidation.warnings,
+        success: false
+      });
+    }
+
+    // Log validation warnings if any
+    if (answerValidation.warnings.length > 0) {
+      console.warn('Answer validation warnings:', answerValidation.warnings);
     }
 
     // Find the answer in the result
     const answerIndex = result.answers.findIndex(
-      answer => answer.question.toString() === questionId
+      answer => answer.question.toString() === sanitizedData.questionId
     );
 
     if (answerIndex === -1) {
-      return res.status(404).json({ message: 'Answer not found in result' });
+      return res.status(404).json({
+        message: 'Answer not found in result',
+        success: false
+      });
     }
 
-    // Check if answer is already submitted
-    if (result.answers[answerIndex].selectedOption || result.answers[answerIndex].textAnswer) {
-      return res.status(400).json({ message: 'Answer already submitted' });
-    }
+    // Determine the actual question type (use frontend detection if provided)
+    const actualQuestionType = sanitizedData.questionType || question.type;
 
-    // Update the answer
-    if (question.type === 'multiple-choice') {
+    console.log(`Processing answer for question type: ${actualQuestionType}`);
+
+    // Use sanitized data for processing
+    const {
+      selectedOption: cleanSelectedOption,
+      textAnswer: cleanTextAnswer,
+      matchingAnswers: cleanMatchingAnswers,
+      orderingAnswer: cleanOrderingAnswer,
+      dragDropAnswer: cleanDragDropAnswer
+    } = sanitizedData;
+
+    // Update the answer based on the actual question type
+    if (actualQuestionType === 'multiple-choice' && !actualQuestionType.includes('fill-in')) {
       // For multiple choice, check if the selected option is correct
       let isCorrect = false;
       let correctOptionText = '';
@@ -1126,7 +1193,7 @@ const submitAnswer = async (req, res) => {
 
 
       // Store the selected option text
-      result.answers[answerIndex].selectedOption = selectedOption;
+      result.answers[answerIndex].selectedOption = cleanSelectedOption;
 
       // Also store the option letter for better display in results
       // First try to use the letter from the selectedOptionObj
@@ -1173,34 +1240,151 @@ const submitAnswer = async (req, res) => {
       console.log(`- Selected option: ${selectedOption}`);
       console.log(`- Correct option: ${correctOptionText}`);
       console.log(`- Is correct: ${isCorrect}`);
-    } else {
-      // For open-ended, store the text answer (grading will be done later)
+    } else if (actualQuestionType === 'fill-in-blank') {
+      // Handle fill-in-blank questions specifically
       try {
-        // Accept any answer, even empty ones
-        // This allows saving any text without restrictions
+        const answerText = cleanTextAnswer || cleanSelectedOption || '';
+
+        console.log(`Processing fill-in-blank answer for question ${sanitizedData.questionId}:`);
+        console.log(`- Answer text: "${answerText}"`);
 
         // Store the answer
-        result.answers[answerIndex].textAnswer = textAnswer;
+        result.answers[answerIndex].textAnswer = answerText;
+
+        // Provide immediate feedback
+        result.answers[answerIndex].feedback = 'Your fill-in-blank answer has been saved. It will be graded when you complete the exam.';
+
+        console.log(`Stored fill-in-blank answer for question ${sanitizedData.questionId}`);
+      } catch (error) {
+        console.error('Error storing fill-in-blank answer:', error);
+        return res.status(500).json({
+          message: 'Error saving your fill-in-blank answer. Please try again.',
+          success: false
+        });
+      }
+    } else if (actualQuestionType === 'true-false') {
+      // Handle true/false questions
+      try {
+        const answerValue = cleanSelectedOption || cleanTextAnswer || '';
+
+        console.log(`Processing true/false answer for question ${sanitizedData.questionId}:`);
+        console.log(`- Answer: "${answerValue}"`);
+
+        // Store the answer
+        result.answers[answerIndex].selectedOption = answerValue;
+
+        // Provide immediate feedback
+        result.answers[answerIndex].feedback = 'Your true/false answer has been saved.';
+
+        console.log(`Stored true/false answer for question ${sanitizedData.questionId}`);
+      } catch (error) {
+        console.error('Error storing true/false answer:', error);
+        return res.status(500).json({
+          message: 'Error saving your true/false answer. Please try again.',
+          success: false
+        });
+      }
+    } else if (actualQuestionType === 'matching') {
+      // Handle matching questions
+      try {
+        console.log(`Processing matching answer for question ${sanitizedData.questionId}:`);
+        console.log(`- Matching answers:`, cleanMatchingAnswers);
+
+        // Store the matching answers (validation already done)
+        result.answers[answerIndex].matchingAnswers = cleanMatchingAnswers;
+
+        // Provide immediate feedback
+        result.answers[answerIndex].feedback = 'Your matching answer has been saved. It will be graded when you complete the exam.';
+
+        console.log(`Stored matching answer for question ${sanitizedData.questionId}`);
+      } catch (error) {
+        console.error('Error storing matching answer:', error);
+        return res.status(500).json({
+          message: 'Error saving your matching answer. Please try again.',
+          success: false
+        });
+      }
+    } else if (actualQuestionType === 'ordering') {
+      // Handle ordering questions
+      try {
+        console.log(`Processing ordering answer for question ${sanitizedData.questionId}:`);
+        console.log(`- Ordering answer:`, cleanOrderingAnswer);
+
+        // Store the ordering answer (validation already done)
+        result.answers[answerIndex].orderingAnswer = cleanOrderingAnswer;
+
+        // Provide immediate feedback
+        result.answers[answerIndex].feedback = 'Your ordering answer has been saved. It will be graded when you complete the exam.';
+
+        console.log(`Stored ordering answer for question ${sanitizedData.questionId}`);
+      } catch (error) {
+        console.error('Error storing ordering answer:', error);
+        return res.status(500).json({
+          message: 'Error saving your ordering answer. Please try again.',
+          success: false
+        });
+      }
+    } else if (actualQuestionType === 'drag-drop') {
+      // Handle drag-drop questions
+      try {
+        console.log(`Processing drag-drop answer for question ${sanitizedData.questionId}:`);
+        console.log(`- Drag-drop answer:`, cleanDragDropAnswer);
+
+        // Store the drag-drop answer (validation already done)
+        result.answers[answerIndex].dragDropAnswer = cleanDragDropAnswer;
+
+        // Provide immediate feedback
+        result.answers[answerIndex].feedback = 'Your drag-drop answer has been saved. It will be graded when you complete the exam.';
+
+        console.log(`Stored drag-drop answer for question ${sanitizedData.questionId}`);
+      } catch (error) {
+        console.error('Error storing drag-drop answer:', error);
+        return res.status(500).json({
+          message: 'Error saving your drag-drop answer. Please try again.',
+          success: false
+        });
+      }
+    } else {
+      // For other question types (essays, short answers, etc.)
+      try {
+        const answerText = cleanTextAnswer || cleanSelectedOption || '';
+
+        console.log(`Processing ${actualQuestionType} answer for question ${sanitizedData.questionId}:`);
+        console.log(`- Answer length: ${answerText.length} characters`);
+
+        // Store the answer (validation already done)
+        result.answers[answerIndex].textAnswer = answerText;
 
         // Provide immediate feedback to the student
         result.answers[answerIndex].feedback = 'Your answer has been saved. It will be graded when you complete the exam.';
 
-        console.log(`Stored essay answer for question ${questionId}, length: ${textAnswer.length} characters`);
+        console.log(`Stored ${actualQuestionType} answer for question ${sanitizedData.questionId}`);
       } catch (error) {
-        console.error('Error storing essay answer:', error);
+        console.error(`Error storing ${actualQuestionType} answer:`, error);
         return res.status(500).json({
-          message: 'Error saving your essay answer. Please try again.',
+          message: 'Error saving your answer. Please try again.',
           success: false
         });
       }
     }
 
-    // Save the result
-    await result.save();
+    // Save the result with enhanced error handling
+    try {
+      await result.save();
+      console.log(`Successfully saved answer for question ${sanitizedData.questionId} to database`);
+    } catch (saveError) {
+      console.error('Error saving result to database:', saveError);
+      return res.status(500).json({
+        message: 'Failed to save answer to database. Please try again.',
+        success: false
+      });
+    }
 
     res.json({
       message: 'Answer submitted successfully',
-      answerId: result.answers[answerIndex]._id
+      answerId: result.answers[answerIndex]._id,
+      questionType: actualQuestionType,
+      success: true
     });
   } catch (error) {
     console.error('Submit answer error:', error);
@@ -1208,12 +1392,22 @@ const submitAnswer = async (req, res) => {
   }
 };
 
-// @desc    Complete an exam
+// @desc    Complete an exam with enhanced validation and error handling
 // @route   POST /api/exam/:id/complete
 // @access  Private/Student
 const completeExam = async (req, res) => {
   try {
-    // Find the result for this student and exam
+    console.log(`Starting exam completion for student ${req.user._id}, exam ${req.params.id}`);
+
+    // Enhanced validation
+    if (!req.params.id) {
+      return res.status(400).json({
+        message: 'Exam ID is required',
+        success: false
+      });
+    }
+
+    // Find the result for this student and exam with enhanced error handling
     const result = await Result.findOne({
       student: req.user._id,
       exam: req.params.id,
@@ -1224,154 +1418,241 @@ const completeExam = async (req, res) => {
     });
 
     if (!result) {
-      return res.status(404).json({ message: 'Exam session not found or already completed' });
+      // Check if there's a completed result
+      const completedResult = await Result.findOne({
+        student: req.user._id,
+        exam: req.params.id,
+        isCompleted: true
+      });
+
+      if (completedResult) {
+        return res.status(409).json({
+          message: 'Exam has already been completed',
+          success: false,
+          resultId: completedResult._id
+        });
+      }
+
+      return res.status(404).json({
+        message: 'Exam session not found. Please start the exam first.',
+        success: false
+      });
     }
 
-    // Grade any open-ended questions that haven't been graded yet
-    // Use a more sophisticated approach that considers question context
-    for (let i = 0; i < result.answers.length; i++) {
+    // Validate that the result has answers
+    if (!result.answers || result.answers.length === 0) {
+      return res.status(400).json({
+        message: 'No answers found. Please answer at least one question before submitting.',
+        success: false
+      });
+    }
+
+    console.log(`Found result with ${result.answers.length} answers for grading`);
+
+    // Import validation utilities
+    const { validateExamSubmission, validateSubmissionTime } = require('../utils/examSubmissionValidator');
+
+    // Get the exam object for validation
+    const exam = await Exam.findById(result.exam);
+    if (!exam) {
+      return res.status(404).json({
+        message: 'Exam not found',
+        success: false
+      });
+    }
+
+    // Validate the submission
+    const submissionValidation = validateExamSubmission(result, exam);
+    if (!submissionValidation.success) {
+      return res.status(400).json({
+        message: 'Submission validation failed',
+        errors: submissionValidation.errors,
+        warnings: submissionValidation.warnings,
+        success: false
+      });
+    }
+
+    // Validate submission time
+    const timeValidation = validateSubmissionTime(result, exam);
+    if (!timeValidation.success) {
+      return res.status(400).json({
+        message: 'Submission time validation failed',
+        errors: timeValidation.errors,
+        warnings: timeValidation.warnings,
+        success: false
+      });
+    }
+
+    // Log validation warnings if any
+    if (submissionValidation.warnings.length > 0) {
+      console.warn('Submission warnings:', submissionValidation.warnings);
+    }
+    if (timeValidation.warnings.length > 0) {
+      console.warn('Time validation warnings:', timeValidation.warnings);
+    }
+
+    console.log(`Validation passed. Starting grading process for ${submissionValidation.stats.answeredQuestions} answered questions`);
+
+    // Add timeout wrapper for the entire grading process
+    const gradingTimeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Grading process timed out after 60 seconds'));
+      }, 60000); // 60 seconds total timeout for grading
+    });
+
+    const gradingPromise = (async () => {
+      // Grade any open-ended questions that haven't been graded yet
+      // Use a more sophisticated approach that considers question context
+      for (let i = 0; i < result.answers.length; i++) {
       const answer = result.answers[i];
       const question = answer.question;
 
-      if (question.type === 'open-ended' && answer.textAnswer && answer.score === 0) {
+      // Use enhanced grading for all question types
+      if (answer.textAnswer || answer.selectedOption || answer.matchingAnswers || answer.orderingAnswer || answer.dragDropAnswer) {
         try {
-          console.log(`Grading open-ended answer for question ${question._id}`);
+          console.log(`Grading ${question.type} answer for question ${question._id}`);
 
-          // Import the grading utilities
-          const { gradeOpenEndedAnswer: chunkedGradeEssay } = require('../utils/chunkedAiGrading');
-          const { gradeOpenEndedAnswer: standardGradeEssay } = require('../utils/aiGrading');
+          // Use the enhanced grading system with semantic equivalence detection
+          const grading = await gradeQuestionByType(question, answer, question.correctAnswer);
 
-          // Try to use the chunked AI grading approach first
-          try {
-            console.log(`Attempting chunked AI grading for question ${question._id}`);
+          // Update the answer with grading results - ensure database consistency like regrading
+          result.answers[i].score = grading.score || 0;
+          result.answers[i].feedback = grading.feedback || 'No feedback provided';
+          result.answers[i].isCorrect = grading.score >= question.points;
+          result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
 
-            // Use a non-blocking approach with a timeout
-            const gradePromise = chunkedGradeEssay(
-              answer.textAnswer,
-              question.correctAnswer,
-              question.points,
-              question.text // Pass the question text to provide context
-            );
+          // Mark that this answer has been graded with enhanced system
+          result.answers[i].gradingMethod = grading.details?.gradingMethod || 'enhanced_grading';
 
-            // Set a timeout to ensure we don't block the response
-            // Use a longer timeout (60 seconds) to give the AI more time to respond
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('AI grading timeout')), 60000)
-            );
+          console.log(`Successfully graded answer for question ${question._id}:`);
+          console.log(`- Question type: ${question.type}`);
+          console.log(`- Student answer: ${answer.textAnswer || answer.selectedOption || 'No answer'}`);
+          console.log(`- Model answer: ${question.correctAnswer || 'No model answer'}`);
+          console.log(`- Score: ${grading.score}/${question.points}`);
+          console.log(`- Is correct: ${result.answers[i].isCorrect}`);
+          console.log(`- Feedback: ${grading.feedback}`);
 
-            // Race the grading against the timeout
-            const grading = await Promise.race([gradePromise, timeoutPromise]);
+          // Log semantic matches for debugging
+          if (grading.details && grading.details.gradingMethod === 'semantic_match') {
+            console.log(`- Semantic match detected: "${answer.textAnswer || answer.selectedOption}" ≈ "${question.correctAnswer}"`);
+          }
 
-            // Update the answer with AI grading results
-            result.answers[i].score = grading.score;
-            result.answers[i].feedback = grading.feedback;
-            result.answers[i].isCorrect = grading.score >= question.points * 0.7; // 70% threshold
-            result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+          // Continue to the next answer
+          continue;
+        } catch (aiError) {
+          // If AI grading fails or times out, fall back to keyword matching
+          console.error(`AI grading failed for question ${question._id}:`, aiError.message);
+          console.log(`Falling back to keyword matching for question ${question._id}`);
 
-            console.log(`Successfully graded answer with AI for question ${question._id}, score: ${grading.score}/${question.points}`);
-
-            // Continue to the next answer
+          // For non-text questions, provide a default score
+          if (question.type !== 'open-ended' && question.type !== 'fill-in-blank') {
+            result.answers[i].score = 0;
+            result.answers[i].feedback = 'Unable to grade this answer automatically. Please contact your instructor.';
+            result.answers[i].isCorrect = false;
             continue;
-          } catch (aiError) {
-            // If AI grading fails or times out, fall back to keyword matching
-            console.error(`AI grading failed for question ${question._id}:`, aiError.message);
-            console.log(`Falling back to keyword matching for question ${question._id}`);
           }
 
           // Fallback: Use keyword matching for immediate feedback
-          const studentAnswer = answer.textAnswer.toLowerCase();
+          try {
+            const studentAnswer = answer.textAnswer.toLowerCase();
 
-          // Use the model answer from the question
-          let modelAnswerText = question.correctAnswer;
+            // Use the model answer from the question
+            let modelAnswerText = question.correctAnswer;
 
-          // If the model answer is missing or just says "Not provided" or "Sample answer"
-          if (!modelAnswerText ||
-              modelAnswerText === "Not provided" ||
-              modelAnswerText === "Sample answer" ||
-              modelAnswerText.trim() === "") {
-            // Log that we're using a default model answer
-            console.log(`Warning: No model answer found for question ${question._id}. Using default for keyword matching.`);
-            modelAnswerText = "The answer should demonstrate understanding of the core concepts, provide relevant examples, and explain the relationships between key components.";
-          }
+            // If the model answer is missing or just says "Not provided" or "Sample answer"
+            if (!modelAnswerText ||
+                modelAnswerText === "Not provided" ||
+                modelAnswerText === "Sample answer" ||
+                modelAnswerText.trim() === "") {
+              // Log that we're using a default model answer
+              console.log(`Warning: No model answer found for question ${question._id}. Using default for keyword matching.`);
+              modelAnswerText = "The answer should demonstrate understanding of the core concepts, provide relevant examples, and explain the relationships between key components.";
+            }
 
-          const modelAnswer = modelAnswerText.toLowerCase();
+            const modelAnswer = modelAnswerText.toLowerCase();
 
-          // Check if student answer contains key phrases from model answer
-          // Use a more lenient approach - include words of 3 or more characters
-          const modelKeywords = modelAnswer.split(/\s+/).filter(word => word.length >= 3);
+            // Check if student answer contains key phrases from model answer
+            // Use a more lenient approach - include words of 3 or more characters
+            const modelKeywords = modelAnswer.split(/\s+/).filter(word => word.length >= 3);
 
-          // Count matches, giving partial credit for partial matches
-          let matchCount = 0;
-          for (const keyword of modelKeywords) {
-            if (studentAnswer.includes(keyword)) {
-              matchCount += 1; // Full match
-            } else if (keyword.length > 4) {
-              // For longer words, check if at least 70% of the word is present
-              const partialMatches = studentAnswer.split(/\s+/).filter(word =>
-                word.length >= 3 &&
-                (keyword.includes(word) || word.includes(keyword.substring(0, Math.floor(keyword.length * 0.7))))
-              );
-              if (partialMatches.length > 0) {
-                matchCount += 0.5; // Partial match
+            // Count matches, giving partial credit for partial matches
+            let matchCount = 0;
+            for (const keyword of modelKeywords) {
+              if (studentAnswer.includes(keyword)) {
+                matchCount += 1; // Full match
+              } else if (keyword.length > 4) {
+                // For longer words, check if at least 70% of the word is present
+                const partialMatches = studentAnswer.split(/\s+/).filter(word =>
+                  word.length >= 3 &&
+                  (keyword.includes(word) || word.includes(keyword.substring(0, Math.floor(keyword.length * 0.7))))
+                );
+                if (partialMatches.length > 0) {
+                  matchCount += 0.5; // Partial match
+                }
               }
             }
-          }
 
-          // Calculate match percentage with a minimum score to avoid zero scores
-          const matchPercentage = modelKeywords.length > 0
-            ? Math.max(0.2, matchCount / modelKeywords.length) // Minimum 20% score
-            : 0.2;
+            // Calculate match percentage with a minimum score to avoid zero scores
+            const matchPercentage = modelKeywords.length > 0
+              ? Math.max(0.2, matchCount / modelKeywords.length) // Minimum 20% score
+              : 0.2;
 
-          // Assign score based on keyword match percentage
-          const score = Math.round(matchPercentage * question.points);
+            // Assign score based on keyword match percentage
+            const score = Math.round(matchPercentage * question.points);
 
-          console.log(`Keyword grading details for question ${question._id}:`);
-          console.log(`- Question text: "${question.text}"`);
-          console.log(`- Model answer: "${modelAnswer}"`);
-          console.log(`- Student answer: "${studentAnswer}"`);
-          console.log(`- Keywords found: ${matchCount} out of ${modelKeywords.length}`);
-          console.log(`- Match percentage: ${Math.round(matchPercentage * 100)}%`);
-          console.log(`- Score: ${score}/${question.points}`);
+            console.log(`Keyword grading details for question ${question._id}:`);
+            console.log(`- Question text: "${question.text}"`);
+            console.log(`- Model answer: "${modelAnswer}"`);
+            console.log(`- Student answer: "${studentAnswer}"`);
+            console.log(`- Keywords found: ${matchCount} out of ${modelKeywords.length}`);
+            console.log(`- Match percentage: ${Math.round(matchPercentage * 100)}%`);
+            console.log(`- Score: ${score}/${question.points}`);
 
-          // Generate appropriate feedback based on score
-          let feedback;
-          if (score >= question.points * 0.8) {
-            feedback = 'Excellent answer! Your response covers most of the key concepts expected.';
-          } else if (score >= question.points * 0.5) {
-            feedback = 'Good answer! Several important concepts were identified in your response, but there are some gaps.';
-          } else if (score >= question.points * 0.3) {
-            feedback = 'Your answer touches on a few key points, but needs more development.';
-          } else if (score >= question.points * 0.1) {
-            feedback = 'Your answer has minimal overlap with the expected concepts. Review the model answer to see what you missed.';
-          } else {
-            feedback = 'Your answer differs significantly from what was expected. Compare with the model answer to understand the key concepts.';
-          }
+            // Generate appropriate feedback based on score
+            let feedback;
+            if (score >= question.points * 0.8) {
+              feedback = 'Excellent answer! Your response covers most of the key concepts expected.';
+            } else if (score >= question.points * 0.5) {
+              feedback = 'Good answer! Several important concepts were identified in your response, but there are some gaps.';
+            } else if (score >= question.points * 0.3) {
+              feedback = 'Your answer touches on a few key points, but needs more development.';
+            } else if (score >= question.points * 0.1) {
+              feedback = 'Your answer has minimal overlap with the expected concepts. Review the model answer to see what you missed.';
+            } else {
+              feedback = 'Your answer differs significantly from what was expected. Compare with the model answer to understand the key concepts.';
+            }
 
-          // Add information about the model answer for transparency
-          feedback += ` Compare your answer with the model answer to see what you might have missed.`;
+            // Add information about the model answer for transparency
+            feedback += ` Compare your answer with the model answer to see what you might have missed.`;
 
-          result.answers[i].score = score;
-          result.answers[i].feedback = `${feedback} (Note: This was graded using keyword matching. AI will regrade your answer shortly.)`;
-          result.answers[i].isCorrect = score >= question.points * 0.7; // 70% threshold for "correct"
-          result.answers[i].correctedAnswer = question.correctAnswer; // Store the correct answer
+            result.answers[i].score = score;
+            result.answers[i].feedback = `${feedback} (Note: This was graded using keyword matching. AI will regrade your answer shortly.)`;
+            result.answers[i].isCorrect = score >= question.points; // Full points required for "correct"
+            result.answers[i].correctedAnswer = question.correctAnswer; // Store the correct answer
+            result.answers[i].gradingMethod = 'keyword_matching'; // Mark grading method
 
-          console.log(`Graded answer with keywords for question ${question._id}, score: ${score}/${question.points}`);
-        } catch (gradingError) {
-          console.error(`Error grading answer:`, gradingError.message);
+            console.log(`Graded answer with keywords for question ${question._id}, score: ${score}/${question.points}`);
+          } catch (gradingError) {
+            console.error(`Error grading answer:`, gradingError.message);
 
           // Provide a default score to avoid blocking the student
           result.answers[i].score = Math.round(question.points * 0.7); // Default to 70%
           result.answers[i].feedback = 'Your answer has been recorded. The final score may be adjusted when AI grading completes.';
           result.answers[i].isCorrect = true;
           result.answers[i].correctedAnswer = question.correctAnswer; // Store the correct answer
+          result.answers[i].gradingMethod = 'default_fallback'; // Mark grading method
 
           console.log(`Applied default grading for question ${question._id}`);
+          }
         }
       }
+
+      // Note: We'll save all progress at the end instead of after each answer
+      // to avoid potential validation issues during progressive saves
     }
 
     // Calculate total score - only count selected questions if selective answering is enabled
-    const exam = await Exam.findById(result.exam);
+    // Note: exam variable is already declared above in the validation section
 
     if (exam.allowSelectiveAnswering) {
       // Get all questions by section
@@ -1544,6 +1825,25 @@ const completeExam = async (req, res) => {
     // Save the result
     await result.save();
 
+    // Return the result data
+    return result;
+    })(); // Close the grading promise
+
+    // Race the grading process against the timeout
+    try {
+      await Promise.race([gradingPromise, gradingTimeoutPromise]);
+    } catch (timeoutError) {
+      if (timeoutError.message.includes('timed out')) {
+        console.warn('Grading process timed out, but exam will be marked as completed');
+        // Mark as completed even if grading timed out
+        result.isCompleted = true;
+        result.endTime = Date.now();
+        await result.save();
+      } else {
+        throw timeoutError;
+      }
+    }
+
     // Trigger AI grading in the background
     try {
       console.log(`Triggering background AI grading for result ${result._id}`);
@@ -1559,8 +1859,77 @@ const completeExam = async (req, res) => {
       // In a production environment, you might use a job queue like Bull
       setTimeout(async () => {
         try {
-          console.log(`Starting AI grading for result ${result._id}`);
-          await gradeExamWithAI(result._id);
+          console.log(`Starting background AI grading for result ${result._id}`);
+
+          // Only regrade answers that were graded with fallback methods
+          const currentResult = await Result.findById(result._id).populate({
+            path: 'answers.question',
+            select: 'text type correctAnswer points section'
+          });
+
+          if (!currentResult) {
+            console.log(`Result ${result._id} not found for background grading`);
+            return;
+          }
+
+          let hasImprovements = false;
+          let gradedCount = 0;
+
+          // Only regrade answers that need improvement (fallback methods)
+          for (let i = 0; i < currentResult.answers.length; i++) {
+            const answer = currentResult.answers[i];
+            const question = answer.question;
+
+            // Skip if already graded with enhanced system
+            if (answer.gradingMethod === 'enhanced_grading' || answer.gradingMethod === 'semantic_match') {
+              console.log(`Skipping question ${question._id} - already graded with enhanced system`);
+              continue;
+            }
+
+            // Only regrade if it was graded with fallback methods
+            if (answer.gradingMethod === 'keyword_matching' || answer.gradingMethod === 'default_fallback') {
+              try {
+                console.log(`Background regrading question ${question._id} (was graded with ${answer.gradingMethod})`);
+
+                const { gradeQuestionByType } = require('../utils/enhancedGrading');
+                const grading = await gradeQuestionByType(question, answer, question.correctAnswer);
+
+                const oldScore = answer.score || 0;
+                const newScore = grading.score || 0;
+
+                // Only update if there's an improvement or significant change
+                if (Math.abs(newScore - oldScore) > 0.1) {
+                  currentResult.answers[i].score = newScore;
+                  currentResult.answers[i].feedback = grading.feedback || 'AI graded answer';
+                  currentResult.answers[i].isCorrect = newScore >= question.points;
+                  currentResult.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+                  currentResult.answers[i].gradingMethod = grading.details?.gradingMethod || 'background_ai_grading';
+
+                  hasImprovements = true;
+                  gradedCount++;
+
+                  console.log(`Background grading improved question ${question._id}: ${oldScore} → ${newScore}`);
+                }
+
+                // Add delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 200));
+              } catch (gradingError) {
+                console.error(`Background grading failed for question ${question._id}:`, gradingError);
+              }
+            }
+          }
+
+          // Only save if there were improvements
+          if (hasImprovements) {
+            // Recalculate total score
+            currentResult.totalScore = currentResult.answers.reduce((total, answer) => total + (answer.score || 0), 0);
+
+            // Save the updated result
+            await currentResult.save();
+            console.log(`Background AI grading completed for result ${result._id} - improved ${gradedCount} answers`);
+          } else {
+            console.log(`Background AI grading completed for result ${result._id} - no improvements needed`);
+          }
 
           // Update the result to indicate AI grading is complete
           const updatedResult = await Result.findById(result._id);
@@ -1569,7 +1938,6 @@ const completeExam = async (req, res) => {
             await updatedResult.save();
           }
 
-          console.log(`AI grading completed for result ${result._id}`);
         } catch (error) {
           console.error('Error in background AI grading:', error);
 
@@ -1584,7 +1952,7 @@ const completeExam = async (req, res) => {
             console.error('Error updating AI grading status:', updateError);
           }
         }
-      }, 1000); // Start after 1 second
+      }, 2000); // Start after 2 seconds to allow initial grading to complete
     } catch (error) {
       console.error('Error setting up background AI grading:', error);
     }
@@ -1657,7 +2025,7 @@ const gradeManually = async (req, res) => {
   }
 };
 
-// @desc    Trigger AI grading for all open-ended answers in a result
+// @desc    Trigger AI grading for all answers in a result with semantic equivalence
 // @route   POST /api/exam/ai-grade/:resultId
 // @access  Private/Admin
 const triggerAIGrading = async (req, res) => {
@@ -1671,69 +2039,103 @@ const triggerAIGrading = async (req, res) => {
       return res.status(404).json({ message: 'Result not found' });
     }
 
-    // Grade open-ended questions
+    // Add timeout protection for regrading
+    const regradingTimeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Regrading process timed out after 120 seconds'));
+      }, 120000); // 2 minutes timeout for regrading
+    });
+
+    const regradingPromise = (async () => {
+
+    // Grade all question types using enhanced semantic grading
     for (let i = 0; i < result.answers.length; i++) {
       const answer = result.answers[i];
       const question = answer.question;
 
-      if (question.type === 'open-ended' && answer.textAnswer) {
-        // Add retry logic for AI grading
-        let attempts = 0;
-        const maxAttempts = 3;
-        let gradingSuccess = false;
+      // Skip empty answers
+      if (!answer.textAnswer && !answer.selectedOption) {
+        console.log(`Skipping empty answer for question ${question._id}`);
+        continue;
+      }
 
-        while (attempts < maxAttempts && !gradingSuccess) {
+      console.log(`Regrading question ${question._id} (type: ${question.type})`);
+
+      try {
+        // Use enhanced grading system for all question types
+        const { gradeQuestionByType } = require('../utils/enhancedGrading');
+
+        // Get model answer
+        let modelAnswer = question.correctAnswer || '';
+        if (!modelAnswer || modelAnswer === "Not provided" || modelAnswer === "Sample answer") {
+          console.log(`Warning: No model answer found for question ${question._id}. Using default.`);
+          modelAnswer = "The answer should demonstrate understanding of the core concepts.";
+        }
+
+        // Use enhanced grading with semantic equivalence
+        const grading = await gradeQuestionByType(question, answer, modelAnswer);
+
+        result.answers[i].score = grading.score;
+        result.answers[i].feedback = grading.feedback;
+        result.answers[i].isCorrect = grading.score >= question.points;
+        result.answers[i].correctedAnswer = grading.correctedAnswer || modelAnswer;
+
+        console.log(`Successfully regraded question ${question._id}, score: ${grading.score}/${question.points}`);
+
+      } catch (enhancedError) {
+        console.error(`Enhanced grading failed for question ${question._id}:`, enhancedError.message);
+
+        // Fallback to chunked grading for open-ended questions
+        if (question.type === 'open-ended' && answer.textAnswer) {
           try {
-            console.log(`Attempt ${attempts + 1} to grade answer for question ${question._id}`);
-
-            // Import the grading utilities
             const { gradeOpenEndedAnswer: chunkedGradeEssay } = require('../utils/chunkedAiGrading');
 
-            // Use the chunked grading approach with question context
             const grading = await chunkedGradeEssay(
               answer.textAnswer,
               question.correctAnswer,
               question.points,
-              question.text // Pass the question text to provide context
+              question.text
             );
 
             result.answers[i].score = grading.score;
             result.answers[i].feedback = grading.feedback;
-            result.answers[i].isCorrect = grading.score === question.points;
+            result.answers[i].isCorrect = grading.score >= question.points;
             result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
 
-            gradingSuccess = true;
-            console.log(`Successfully graded answer for question ${question._id}`);
-          } catch (gradingError) {
-            console.error(`Attempt ${attempts + 1} to grade answer failed:`, gradingError.message);
-            attempts++;
+            console.log(`Fallback grading successful for question ${question._id}`);
+          } catch (fallbackError) {
+            console.error(`All grading methods failed for question ${question._id}:`, fallbackError.message);
 
-            if (attempts >= maxAttempts) {
-              console.error('All AI grading attempts failed, using fallback grading');
+            // Final fallback - keyword matching
+            const studentAnswer = (answer.textAnswer || '').toLowerCase();
+            const modelAnswer = (question.correctAnswer || '').toLowerCase();
 
-              // Fallback grading logic - simple keyword matching
-              const studentAnswer = answer.textAnswer.toLowerCase();
-              const modelAnswer = question.correctAnswer.toLowerCase();
-
-              // Check if student answer contains key phrases from model answer
-              const modelKeywords = modelAnswer.split(/\s+/).filter(word => word.length > 5);
+            if (studentAnswer && modelAnswer) {
+              const modelKeywords = modelAnswer.split(/\s+/).filter(word => word.length > 3);
               const matchCount = modelKeywords.filter(keyword => studentAnswer.includes(keyword)).length;
               const matchPercentage = modelKeywords.length > 0 ? matchCount / modelKeywords.length : 0;
-
-              // Assign score based on keyword match percentage
               const score = Math.round(matchPercentage * question.points);
 
               result.answers[i].score = score;
               result.answers[i].feedback = 'This answer was graded using keyword matching due to AI grading unavailability.';
-              result.answers[i].isCorrect = score >= question.points * 0.7; // 70% threshold for "correct"
-              result.answers[i].correctedAnswer = question.correctAnswer; // Store the correct answer
+              result.answers[i].isCorrect = score >= question.points;
+              result.answers[i].correctedAnswer = question.correctAnswer;
 
-              console.log(`Applied fallback grading for question ${question._id}, score: ${score}/${question.points}`);
+              console.log(`Applied keyword matching for question ${question._id}, score: ${score}/${question.points}`);
             } else {
-              // Wait before retrying
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              // Give partial credit if no grading is possible
+              result.answers[i].score = Math.round(question.points * 0.5);
+              result.answers[i].feedback = 'Unable to grade automatically. Partial credit awarded.';
+              result.answers[i].isCorrect = false;
+              result.answers[i].correctedAnswer = question.correctAnswer;
             }
           }
+        } else {
+          // For non-open-ended questions, give partial credit
+          result.answers[i].score = Math.round(question.points * 0.5);
+          result.answers[i].feedback = 'Unable to grade automatically. Partial credit awarded.';
+          result.answers[i].isCorrect = false;
+          result.answers[i].correctedAnswer = question.correctAnswer;
         }
       }
     }
@@ -1827,11 +2229,29 @@ const triggerAIGrading = async (req, res) => {
     // Save the result
     await result.save();
 
+    return result;
+    })(); // Close the regrading promise
+
+    // Race the regrading process against the timeout
+    try {
+      await Promise.race([regradingPromise, regradingTimeoutPromise]);
+    } catch (timeoutError) {
+      if (timeoutError.message.includes('timed out')) {
+        console.warn('Regrading process timed out, but partial results may be saved');
+        // Continue with partial results
+      } else {
+        throw timeoutError;
+      }
+    }
+
+    // Reload the result to get the latest data
+    const updatedResult = await Result.findById(req.params.resultId);
+
     res.json({
       message: 'AI grading completed successfully',
-      totalScore: result.totalScore || 0,
-      maxPossibleScore: result.maxPossibleScore || 1,
-      percentage: result.maxPossibleScore > 0 ? (result.totalScore / result.maxPossibleScore) * 100 : 0
+      totalScore: updatedResult.totalScore || 0,
+      maxPossibleScore: updatedResult.maxPossibleScore || 1,
+      percentage: updatedResult.maxPossibleScore > 0 ? (updatedResult.totalScore / updatedResult.maxPossibleScore) * 100 : 0
     });
   } catch (error) {
     console.error('Trigger AI grading error:', error);
@@ -2152,23 +2572,144 @@ const regradeExamResult = async (req, res) => {
   }
 };
 
-// @desc    Find and grade all ungraded exam results
+// Helper function to bulk regrade specific results
+const bulkRegradeSpecificResults = async (resultIds, method = 'ai', forceRegrade = false) => {
+  const gradeExamUtils = require('../utils/gradeExam');
+  const { gradeQuestionByType } = require('../utils/enhancedGrading');
+
+  let processedCount = 0;
+  let improvedCount = 0;
+  let totalScoreImprovement = 0;
+
+  console.log(`Starting bulk regrade for ${resultIds.length} results with method: ${method}`);
+
+  for (const resultId of resultIds) {
+    try {
+      console.log(`Processing result ${resultId} (${processedCount + 1}/${resultIds.length})`);
+
+      if (method === 'comprehensive') {
+        // Use comprehensive AI grading
+        const result = await Result.findById(resultId)
+          .populate({
+            path: 'answers.question',
+            select: 'text type points correctAnswer options'
+          });
+
+        if (!result) {
+          console.log(`Result ${resultId} not found, skipping`);
+          continue;
+        }
+
+        const oldScore = result.totalScore || 0;
+        let newTotalScore = 0;
+        let hasImprovement = false;
+
+        // Process each answer with comprehensive grading
+        for (let i = 0; i < result.answers.length; i++) {
+          const answer = result.answers[i];
+          const question = answer.question;
+
+          if (!question) continue;
+
+          try {
+            // Use enhanced grading with semantic equivalence detection
+            const grading = await gradeQuestionByType(question, answer, question.correctAnswer);
+            const newScore = grading.score || 0;
+            const oldAnswerScore = answer.score || 0;
+
+            // Always update the answer with the new grading results
+            result.answers[i].score = newScore;
+            result.answers[i].feedback = grading.feedback || 'AI graded answer';
+            result.answers[i].isCorrect = newScore >= question.points;
+            result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+
+            // Log semantic matches for debugging
+            if (grading.details && grading.details.gradingMethod === 'semantic_match') {
+              console.log(`Semantic match found for question ${question._id}: "${answer.selectedOption || answer.textAnswer}" matches "${question.correctAnswer}"`);
+              hasImprovement = true;
+            } else if (newScore !== oldAnswerScore) {
+              hasImprovement = true;
+            }
+
+            newTotalScore += newScore;
+
+            // Add delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch (error) {
+            console.error(`Error grading answer for question ${question._id}:`, error);
+            newTotalScore += answer.score || 0;
+          }
+        }
+
+        // Update result if there was improvement
+        if (hasImprovement || forceRegrade) {
+          result.totalScore = newTotalScore;
+          result.aiGradingStatus = 'completed';
+          await result.save();
+
+          if (newTotalScore > oldScore) {
+            improvedCount++;
+            totalScoreImprovement += (newTotalScore - oldScore);
+          }
+        }
+      } else {
+        // Use standard AI regrading
+        const regradingResult = await gradeExamUtils.regradeExamResult(resultId, forceRegrade);
+        if (regradingResult.totalScore > 0) {
+          improvedCount++;
+        }
+      }
+
+      processedCount++;
+
+      // Add delay between results to avoid overwhelming the system
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+    } catch (error) {
+      console.error(`Error regrading result ${resultId}:`, error);
+      processedCount++;
+    }
+  }
+
+  console.log(`Bulk regrade completed: ${processedCount} processed, ${improvedCount} improved`);
+
+  return {
+    processedCount,
+    improvedCount,
+    totalScoreImprovement,
+    averageImprovement: improvedCount > 0 ? totalScoreImprovement / improvedCount : 0
+  };
+};
+
+// @desc    Find and grade all ungraded exam results or specific results
 // @route   POST /api/exam/regrade-all
 // @access  Private/Admin
 const regradeAllExams = async (req, res) => {
   try {
+    const { resultIds, method = 'ai', forceRegrade = false } = req.body;
+
     // Import the grading utility
     const gradeExamUtils = require('../utils/gradeExam');
 
     // Start the process in the background
     res.json({
       message: 'Batch regrading process started in the background',
-      status: 'processing'
+      status: 'processing',
+      resultCount: resultIds ? resultIds.length : 'all ungraded'
     });
 
     // Run the batch grading process
     try {
-      const result = await gradeExamUtils.findAndGradeUngradedResults();
+      let result;
+      if (resultIds && resultIds.length > 0) {
+        // Regrade specific results
+        console.log(`Starting bulk regrade for ${resultIds.length} specific results`);
+        result = await bulkRegradeSpecificResults(resultIds, method, forceRegrade);
+      } else {
+        // Regrade all ungraded results
+        console.log('Starting bulk regrade for all ungraded results');
+        result = await gradeExamUtils.findAndGradeUngradedResults();
+      }
       console.log('Batch regrading completed:', result);
     } catch (error) {
       console.error('Error in batch regrading:', error);
@@ -2347,6 +2888,409 @@ const selectQuestion = async (req, res) => {
   }
 };
 
+// @desc    Fix existing results with incorrect isCorrect values
+// @route   POST /api/exam/fix-results
+// @access  Private/Admin
+const fixExistingResults = async (req, res) => {
+  try {
+    console.log('Starting to fix existing results with incorrect isCorrect values...');
+
+    // Find all completed results
+    const results = await Result.find({ isCompleted: true })
+      .populate({
+        path: 'answers.question',
+        select: 'text type points correctAnswer'
+      });
+
+    console.log(`Found ${results.length} completed results to check`);
+
+    let fixedCount = 0;
+    let totalAnswersFixed = 0;
+
+    for (const result of results) {
+      let resultModified = false;
+
+      for (let i = 0; i < result.answers.length; i++) {
+        const answer = result.answers[i];
+        const question = answer.question;
+
+        if (!question) continue;
+
+        // Check if the answer has a score but incorrect isCorrect value
+        const currentScore = answer.score || 0;
+        const maxPoints = question.points || 1;
+        const shouldBeCorrect = currentScore >= maxPoints;
+        const currentIsCorrect = answer.isCorrect;
+
+        // Fix if there's a mismatch
+        if (shouldBeCorrect !== currentIsCorrect) {
+          console.log(`Fixing answer for question ${question._id}:`);
+          console.log(`- Score: ${currentScore}/${maxPoints}`);
+          console.log(`- Current isCorrect: ${currentIsCorrect}`);
+          console.log(`- Should be isCorrect: ${shouldBeCorrect}`);
+
+          result.answers[i].isCorrect = shouldBeCorrect;
+          resultModified = true;
+          totalAnswersFixed++;
+        }
+
+        // Also fix cases where score is 0 but answer might be correct
+        if (currentScore === 0 && answer.selectedOption && question.type === 'multiple-choice') {
+          // Check if the selected option matches the correct answer
+          const selectedOption = answer.selectedOption.toLowerCase().trim();
+          const correctAnswer = (question.correctAnswer || '').toLowerCase().trim();
+
+          // Simple semantic check
+          if (selectedOption === correctAnswer ||
+              correctAnswer.includes(selectedOption) ||
+              selectedOption.includes(correctAnswer)) {
+
+            console.log(`Fixing zero-score correct answer for question ${question._id}:`);
+            console.log(`- Selected: "${selectedOption}"`);
+            console.log(`- Correct: "${correctAnswer}"`);
+
+            result.answers[i].score = maxPoints;
+            result.answers[i].isCorrect = true;
+            result.answers[i].feedback = 'Correct answer! (Fixed by system)';
+            resultModified = true;
+            totalAnswersFixed++;
+          }
+        }
+      }
+
+      // Recalculate total score if any answers were modified
+      if (resultModified) {
+        const newTotalScore = result.answers.reduce((total, answer) => total + (answer.score || 0), 0);
+        const oldTotalScore = result.totalScore;
+
+        result.totalScore = newTotalScore;
+
+        console.log(`Result ${result._id}: Updated total score from ${oldTotalScore} to ${newTotalScore}`);
+
+        await result.save();
+        fixedCount++;
+      }
+    }
+
+    console.log(`Fix completed: ${fixedCount} results updated, ${totalAnswersFixed} answers fixed`);
+
+    res.json({
+      message: 'Results fixed successfully',
+      resultsFixed: fixedCount,
+      answersFixed: totalAnswersFixed,
+      totalResultsChecked: results.length
+    });
+
+  } catch (error) {
+    console.error('Fix existing results error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Debug a specific result to see scoring details
+// @route   GET /api/exam/debug-result/:resultId
+// @access  Private/Admin
+const debugResult = async (req, res) => {
+  try {
+    const resultId = req.params.resultId;
+
+    // Find the result with all details
+    const result = await Result.findById(resultId)
+      .populate({
+        path: 'answers.question',
+        select: 'text type points correctAnswer options'
+      })
+      .populate('student', 'firstName lastName email')
+      .populate('exam', 'title');
+
+    if (!result) {
+      return res.status(404).json({ message: 'Result not found' });
+    }
+
+    // Analyze each answer
+    const answerAnalysis = result.answers.map((answer, index) => {
+      const question = answer.question;
+      if (!question) {
+        return {
+          index,
+          error: 'Question not found or deleted'
+        };
+      }
+
+      const analysis = {
+        index,
+        questionId: question._id,
+        questionText: question.text.substring(0, 100) + '...',
+        questionType: question.type,
+        maxPoints: question.points || 1,
+        studentAnswer: answer.textAnswer || answer.selectedOption || 'No answer',
+        correctAnswer: question.correctAnswer || 'Not provided',
+        currentScore: answer.score || 0,
+        currentIsCorrect: answer.isCorrect,
+        feedback: answer.feedback || 'No feedback',
+
+        // Calculate what the score should be
+        shouldBeCorrect: (answer.score || 0) >= (question.points || 1),
+
+        // Check for potential issues
+        issues: []
+      };
+
+      // Identify potential issues
+      if (analysis.currentScore > 0 && !analysis.currentIsCorrect) {
+        analysis.issues.push('Has score but marked as incorrect');
+      }
+
+      if (analysis.currentScore === 0 && analysis.currentIsCorrect) {
+        analysis.issues.push('Marked as correct but has zero score');
+      }
+
+      if (analysis.currentScore === analysis.maxPoints && !analysis.currentIsCorrect) {
+        analysis.issues.push('Full score but marked as incorrect');
+      }
+
+      // For multiple choice, check if answer matches
+      if (question.type === 'multiple-choice' && analysis.currentScore === 0) {
+        const selectedLower = (analysis.studentAnswer || '').toLowerCase().trim();
+        const correctLower = (analysis.correctAnswer || '').toLowerCase().trim();
+
+        if (selectedLower === correctLower ||
+            correctLower.includes(selectedLower) ||
+            selectedLower.includes(correctLower)) {
+          analysis.issues.push('Appears to be correct but has zero score');
+        }
+      }
+
+      return analysis;
+    });
+
+    // Calculate summary
+    const summary = {
+      resultId: result._id,
+      student: result.student ? `${result.student.firstName} ${result.student.lastName}` : 'Unknown',
+      exam: result.exam?.title || 'Unknown',
+      totalScore: result.totalScore,
+      maxPossibleScore: result.maxPossibleScore,
+      percentage: result.maxPossibleScore > 0 ? Math.round((result.totalScore / result.maxPossibleScore) * 100) : 0,
+      isCompleted: result.isCompleted,
+      aiGradingStatus: result.aiGradingStatus,
+      totalAnswers: result.answers.length,
+      answersWithIssues: answerAnalysis.filter(a => a.issues && a.issues.length > 0).length,
+      answersWithScore: answerAnalysis.filter(a => (a.currentScore || 0) > 0).length,
+      answersMarkedCorrect: answerAnalysis.filter(a => a.currentIsCorrect).length
+    };
+
+    res.json({
+      summary,
+      answers: answerAnalysis,
+      issues: answerAnalysis.filter(a => a.issues && a.issues.length > 0)
+    });
+
+  } catch (error) {
+    console.error('Debug result error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Comprehensive AI grading for all exam results
+// @route   POST /api/exam/comprehensive-ai-grading
+// @access  Private/Admin
+const comprehensiveAIGrading = async (req, res) => {
+  try {
+    console.log('Starting comprehensive AI grading for all exam results...');
+
+    // Find all completed results that need proper AI grading
+    const results = await Result.find({
+      isCompleted: true,
+      $or: [
+        { aiGradingStatus: { $ne: 'completed' } },
+        { aiGradingStatus: { $exists: false } }
+      ]
+    })
+      .populate({
+        path: 'answers.question',
+        select: 'text type points correctAnswer options'
+      })
+      .populate('exam', 'title')
+      .populate('student', 'firstName lastName email');
+
+    console.log(`Found ${results.length} results that need AI grading`);
+
+    let processedCount = 0;
+    let improvedCount = 0;
+    let totalScoreImprovement = 0;
+
+    for (const result of results) {
+      try {
+        console.log(`Processing result ${result._id} for student ${result.student?.firstName} ${result.student?.lastName}`);
+
+        let resultModified = false;
+        let oldTotalScore = result.totalScore || 0;
+        let newTotalScore = 0;
+
+        // Process each answer with enhanced AI grading
+        for (let i = 0; i < result.answers.length; i++) {
+          const answer = result.answers[i];
+          const question = answer.question;
+
+          if (!question) {
+            console.log(`Skipping answer ${i} - question not found`);
+            continue;
+          }
+
+          // Skip if already has a good score and feedback
+          if (answer.score >= question.points && answer.feedback && answer.feedback.length > 20) {
+            newTotalScore += answer.score;
+            continue;
+          }
+
+          console.log(`AI grading question ${question._id} (${question.type})`);
+
+          try {
+            // Use the enhanced grading system with semantic equivalence detection
+            const { gradeQuestionByType, areSemanticallySimilar } = require('../utils/enhancedGrading');
+            const grading = await gradeQuestionByType(question, answer, question.correctAnswer);
+
+            const oldScore = answer.score || 0;
+            const newScore = grading.score || 0;
+
+            // Always update the answer with the new grading results to ensure database consistency
+            result.answers[i].score = newScore;
+            result.answers[i].feedback = grading.feedback || 'AI graded answer';
+            result.answers[i].isCorrect = newScore >= question.points;
+            result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+
+            newTotalScore += newScore;
+
+            // Log improvements and semantic matches
+            if (newScore !== oldScore) {
+              console.log(`Question ${question._id}: Score changed from ${oldScore} to ${newScore}`);
+              resultModified = true;
+            }
+
+            // Log semantic matches for debugging
+            if (grading.details && grading.details.gradingMethod === 'semantic_match') {
+              console.log(`Semantic match detected for question ${question._id}: "${answer.selectedOption || answer.textAnswer}" ≈ "${question.correctAnswer}"`);
+              resultModified = true;
+            }
+
+          } catch (gradingError) {
+            console.error(`Error grading question ${question._id}:`, gradingError.message);
+
+            // Use fallback grading for critical cases
+            const oldScore = answer.score || 0;
+            let newScore = oldScore;
+
+            // For multiple choice questions, check semantic equivalence
+            if (question.type === 'multiple-choice' && answer.selectedOption && question.correctAnswer) {
+              const selected = answer.selectedOption.toLowerCase().trim();
+              const correct = question.correctAnswer.toLowerCase().trim();
+
+              // Enhanced semantic matching
+              if (selected === correct ||
+                  correct.includes(selected) ||
+                  selected.includes(correct) ||
+                  areSemanticallySimilar(selected, correct)) {
+
+                newScore = question.points;
+                result.answers[i].score = newScore;
+                result.answers[i].isCorrect = true;
+                result.answers[i].feedback = 'Correct answer (semantic match)';
+                resultModified = true;
+
+                console.log(`Semantic match found for question ${question._id}: "${selected}" matches "${correct}"`);
+              }
+            }
+
+            newTotalScore += newScore;
+          }
+        }
+
+        // Update result if modified
+        if (resultModified) {
+          result.totalScore = newTotalScore;
+          result.aiGradingStatus = 'completed';
+          await result.save();
+
+          const scoreImprovement = newTotalScore - oldTotalScore;
+          totalScoreImprovement += scoreImprovement;
+          improvedCount++;
+
+          console.log(`Result ${result._id}: Total score updated from ${oldTotalScore} to ${newTotalScore} (improvement: +${scoreImprovement})`);
+        }
+
+        processedCount++;
+
+        // Add a small delay to avoid overwhelming the AI service
+        if (processedCount % 5 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+      } catch (resultError) {
+        console.error(`Error processing result ${result._id}:`, resultError.message);
+        continue;
+      }
+    }
+
+    console.log(`Comprehensive AI grading completed:`);
+    console.log(`- Results processed: ${processedCount}`);
+    console.log(`- Results improved: ${improvedCount}`);
+    console.log(`- Total score improvement: +${totalScoreImprovement} points`);
+
+    res.json({
+      message: 'Comprehensive AI grading completed successfully',
+      resultsProcessed: processedCount,
+      resultsImproved: improvedCount,
+      totalScoreImprovement: totalScoreImprovement,
+      averageImprovement: improvedCount > 0 ? Math.round(totalScoreImprovement / improvedCount * 100) / 100 : 0
+    });
+
+  } catch (error) {
+    console.error('Comprehensive AI grading error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Helper function to check semantic similarity
+function areSemanticallySimilar(text1, text2) {
+  const commonEquivalences = {
+    'wan': ['wide area network', 'wide-area network'],
+    'lan': ['local area network', 'local-area network'],
+    'cpu': ['central processing unit', 'processor'],
+    'ram': ['random access memory', 'memory'],
+    'rom': ['read only memory', 'read-only memory'],
+    'os': ['operating system'],
+    'hdd': ['hard disk drive', 'hard drive'],
+    'ssd': ['solid state drive', 'solid-state drive'],
+    'gpu': ['graphics processing unit', 'graphics card'],
+    'psu': ['power supply unit', 'power supply'],
+    'usb': ['universal serial bus'],
+    'http': ['hypertext transfer protocol'],
+    'https': ['hypertext transfer protocol secure'],
+    'ftp': ['file transfer protocol'],
+    'ip': ['internet protocol'],
+    'tcp': ['transmission control protocol'],
+    'dns': ['domain name system'],
+    'url': ['uniform resource locator'],
+    'html': ['hypertext markup language'],
+    'css': ['cascading style sheets'],
+    'sql': ['structured query language']
+  };
+
+  const clean1 = text1.toLowerCase().replace(/[^\w\s]/g, '').trim();
+  const clean2 = text2.toLowerCase().replace(/[^\w\s]/g, '').trim();
+
+  // Check direct equivalences
+  for (const [abbrev, expansions] of Object.entries(commonEquivalences)) {
+    if ((clean1 === abbrev && expansions.some(exp => clean2.includes(exp))) ||
+        (clean2 === abbrev && expansions.some(exp => clean1.includes(exp)))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 module.exports = {
   createExam,
   getExams,
@@ -2365,5 +3309,8 @@ module.exports = {
   regradeExamResult,
   regradeAllExams,
   enableSelectiveAnswering,
-  selectQuestion
+  selectQuestion,
+  fixExistingResults,
+  debugResult,
+  comprehensiveAIGrading
 };

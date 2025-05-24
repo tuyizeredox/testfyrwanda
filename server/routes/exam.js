@@ -21,7 +21,10 @@ const {
   regradeExamResult,
   regradeAllExams,
   enableSelectiveAnswering,
-  selectQuestion
+  selectQuestion,
+  fixExistingResults,
+  debugResult,
+  comprehensiveAIGrading
 } = require('../controllers/examController');
 const auth = require('../middleware/auth');
 const { isAdmin, isStudent } = require('../middleware/role');
@@ -85,6 +88,9 @@ router.post('/:id/reset-questions', isAdmin, resetExamQuestions);
 // Regrading routes
 router.post('/regrade/:resultId', auth, regradeExamResult); // Allow both students and admins to request regrading
 router.post('/regrade-all', isAdmin, regradeAllExams);
+router.post('/fix-results', isAdmin, fixExistingResults); // Fix existing results with incorrect scores
+router.get('/debug-result/:resultId', isAdmin, debugResult); // Debug specific result
+router.post('/comprehensive-ai-grading', isAdmin, comprehensiveAIGrading); // Comprehensive AI grading
 router.post('/:id/enable-selective-answering', isAdmin, enableSelectiveAnswering);
 
 // Routes for both admin and students

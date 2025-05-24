@@ -32,7 +32,11 @@ import {
   Grow,
   IconButton,
   Tooltip,
-  Snackbar
+  Snackbar,
+  List,
+  ListItem,
+  ListItemText,
+  useTheme
 } from '@mui/material';
 import {
   ArrowBack,
@@ -53,25 +57,48 @@ import {
   TouchApp,
   Fullscreen,
   FullscreenExit,
-  Security
+  Security,
+  DragIndicator,
+  SwapVert
 } from '@mui/icons-material';
-import { styled } from '@mui/material/styles';
+import { styled, alpha } from '@mui/material/styles';
+import { useThemeMode } from '../../context/ThemeContext';
 import api from '../../services/api';
 // Import security CSS
 import './ExamSecurity.css';
 
 // Styled components for gamified UI
-const QuestionCard = styled(Card)(({ theme, answered: answeredProp }) => {
+const QuestionCard = styled(Card, {
+  shouldForwardProp: (prop) => prop !== 'answered'
+})(({ theme, answered: answeredProp }) => {
   // Convert boolean prop to string to avoid React warnings
   // Remove the prop from the DOM by handling it here
   const isAnswered = answeredProp === true || answeredProp === 'true';
+  const isDark = theme.palette.mode === 'dark';
 
   return {
     height: '100%',
     position: 'relative',
     overflow: 'hidden',
     transition: 'all 0.3s ease',
-    borderLeft: isAnswered ? `5px solid ${theme.palette.success.main}` : 'none',
+    borderRadius: '12px',
+    backgroundColor: isDark
+      ? alpha(theme.palette.background.paper, 0.95)
+      : theme.palette.background.paper,
+    backdropFilter: 'blur(10px)',
+    border: isDark
+      ? `1px solid ${alpha(theme.palette.divider, 0.2)}`
+      : 'none',
+    boxShadow: isDark
+      ? '0 8px 32px rgba(0,0,0,0.3)'
+      : '0 4px 20px rgba(0,0,0,0.08)',
+    borderLeft: isAnswered ? `5px solid ${theme.palette.success.main}` : isDark ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}` : 'none',
+    '&:hover': {
+      transform: 'translateY(-2px)',
+      boxShadow: isDark
+        ? '0 12px 40px rgba(0,0,0,0.4)'
+        : '0 8px 30px rgba(0,0,0,0.12)',
+    },
     '&::before': isAnswered ? {
       content: '""',
       position: 'absolute',
@@ -79,9 +106,10 @@ const QuestionCard = styled(Card)(({ theme, answered: answeredProp }) => {
       right: 0,
       width: '30px',
       height: '30px',
-      background: theme.palette.success.main,
+      background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
       transform: 'rotate(45deg) translate(15px, -15px)',
-      zIndex: 1
+      zIndex: 1,
+      boxShadow: isDark ? '0 4px 12px rgba(76, 175, 80, 0.3)' : '0 2px 8px rgba(76, 175, 80, 0.2)'
     } : {},
     '&::after': isAnswered ? {
       content: '""',
@@ -98,49 +126,93 @@ const QuestionCard = styled(Card)(({ theme, answered: answeredProp }) => {
   };
 });
 
-const TimerDisplay = styled(Box)(({ theme, warning }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: theme.spacing(1, 2),
-  borderRadius: 0, // Remove rounded corners
-  backgroundColor: warning
-    ? warning === 'danger'
-      ? theme.palette.error.main
-      : theme.palette.warning.main
-    : theme.palette.primary.main,
-  color: 'white',
-  fontWeight: 'bold',
-  boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
-  animation: warning === 'danger' ? 'pulse 1s infinite' : 'none',
-  '@keyframes pulse': {
-    '0%': {
-      boxShadow: '0 0 0 0 rgba(213, 0, 0, 0.7)'
-    },
-    '70%': {
-      boxShadow: '0 0 0 10px rgba(213, 0, 0, 0)'
-    },
-    '100%': {
-      boxShadow: '0 0 0 0 rgba(213, 0, 0, 0)'
-    }
-  }
-}));
+const TimerDisplay = styled(Box)(({ theme, warning }) => {
+  const isDark = theme.palette.mode === 'dark';
 
-const SectionChip = styled(Chip)(({ theme, active: activeProp }) => {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing(1, 2),
+    borderRadius: '8px',
+    background: warning
+      ? warning === 'danger'
+        ? `linear-gradient(135deg, ${theme.palette.error.main}, ${theme.palette.error.dark})`
+        : `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})`
+      : `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+    color: 'white',
+    fontWeight: 'bold',
+    boxShadow: isDark
+      ? warning === 'danger'
+        ? '0 6px 20px rgba(244, 67, 54, 0.4)'
+        : warning === 'warning'
+          ? '0 6px 20px rgba(255, 152, 0, 0.4)'
+          : '0 6px 20px rgba(25, 118, 210, 0.4)'
+      : '0 4px 12px rgba(0, 0, 0, 0.2)',
+    border: isDark ? `1px solid ${alpha('#ffffff', 0.2)}` : 'none',
+    animation: warning === 'danger' ? 'pulse 1s infinite' : 'none',
+    '@keyframes pulse': {
+      '0%': {
+        boxShadow: isDark
+          ? '0 0 0 0 rgba(244, 67, 54, 0.7)'
+          : '0 0 0 0 rgba(213, 0, 0, 0.7)'
+      },
+      '70%': {
+        boxShadow: isDark
+          ? '0 0 0 10px rgba(244, 67, 54, 0)'
+          : '0 0 0 10px rgba(213, 0, 0, 0)'
+      },
+      '100%': {
+        boxShadow: isDark
+          ? '0 0 0 0 rgba(244, 67, 54, 0)'
+          : '0 0 0 0 rgba(213, 0, 0, 0)'
+      }
+    }
+  };
+});
+
+const SectionChip = styled(Chip, {
+  shouldForwardProp: (prop) => prop !== 'active'
+})(({ theme, active: activeProp }) => {
   // Convert boolean prop to string to avoid React warnings
   // Remove the prop from the DOM by handling it here
   const isActive = activeProp === true || activeProp === 'true';
+  const isDark = theme.palette.mode === 'dark';
 
   return {
     fontWeight: 'bold',
-    backgroundColor: isActive ? theme.palette.primary.main : theme.palette.grey[300],
-    color: isActive ? 'white' : theme.palette.text.primary,
+    borderRadius: '8px',
+    backgroundColor: isActive
+      ? theme.palette.primary.main
+      : isDark
+        ? alpha(theme.palette.background.paper, 0.8)
+        : theme.palette.grey[200],
+    color: isActive
+      ? 'white'
+      : theme.palette.text.primary,
+    border: isDark && !isActive
+      ? `1px solid ${alpha(theme.palette.divider, 0.3)}`
+      : 'none',
     '&:hover': {
-      backgroundColor: isActive ? theme.palette.primary.dark : theme.palette.grey[400],
+      backgroundColor: isActive
+        ? theme.palette.primary.dark
+        : isDark
+          ? alpha(theme.palette.primary.main, 0.2)
+          : theme.palette.grey[300],
+      transform: 'translateY(-1px)',
+      boxShadow: isDark
+        ? '0 6px 20px rgba(0,0,0,0.3)'
+        : '0 4px 12px rgba(0,0,0,0.15)',
     },
     transition: 'all 0.3s ease',
     transform: isActive ? 'scale(1.05)' : 'scale(1)',
-    boxShadow: isActive ? '0 4px 8px rgba(0, 0, 0, 0.2)' : 'none',
+    boxShadow: isActive
+      ? isDark
+        ? '0 6px 24px rgba(25, 118, 210, 0.4)'
+        : '0 4px 12px rgba(25, 118, 210, 0.3)'
+      : isDark
+        ? '0 2px 8px rgba(0,0,0,0.2)'
+        : '0 1px 4px rgba(0,0,0,0.1)',
   };
 });
 
@@ -148,6 +220,8 @@ const SectionChip = styled(Chip)(({ theme, active: activeProp }) => {
 const ExamInterface = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const { mode } = useThemeMode();
 
   // Security state variables
   const [securityActive, setSecurityActive] = useState(false);
@@ -189,7 +263,7 @@ const ExamInterface = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Handle exam submission - defined at the top to avoid reference errors
+  // Enhanced exam submission with better validation and error handling
   const handleSubmitExam = useCallback(async () => {
     try {
       setSubmitting(true);
@@ -200,6 +274,11 @@ const ExamInterface = () => {
         message: 'Preparing to submit your exam...',
         severity: 'info'
       });
+
+      // Validate exam state before submission
+      if (!exam || !exam.sections || exam.sections.length === 0) {
+        throw new Error('Invalid exam data. Please refresh the page and try again.');
+      }
 
       // First, save any unsaved essay answers (no character limit)
       const unsavedAnswers = Object.entries(answers).filter(([_, answer]) =>
@@ -214,7 +293,7 @@ const ExamInterface = () => {
           severity: 'info'
         });
 
-        // Save each unsaved answer
+        // Save each unsaved answer with enhanced error handling
         for (const [questionId, answer] of unsavedAnswers) {
           try {
             // Find the question type
@@ -222,68 +301,145 @@ const ExamInterface = () => {
               .flatMap(section => section.questions)
               .find(q => q._id === questionId);
 
-            if (question) {
-              await saveAnswerToServer(questionId, answer.textAnswer, question.type);
+            if (question && answer.textAnswer) {
+              // Validate answer before saving
+              const cleanAnswer = answer.textAnswer.trim();
+              if (cleanAnswer.length > 0) {
+                await saveAnswerToServer(questionId, cleanAnswer, question.type);
+              }
             }
           } catch (error) {
             console.error(`Error saving answer ${questionId} before submission:`, error);
-            // Continue with other answers even if one fails
+            // Show warning but continue with submission
+            setSnackbar({
+              open: true,
+              message: `Warning: Could not save answer for question ${questionId}. Continuing with submission...`,
+              severity: 'warning'
+            });
           }
         }
       }
 
-      // Now submit the exam
+      // Validate that we have at least some answers
+      const totalAnswers = Object.keys(answers).length;
+      const answeredQuestions = Object.values(answers).filter(answer =>
+        answer.answered || answer.textAnswer?.trim() || answer.selectedOption
+      ).length;
+
+      if (answeredQuestions === 0) {
+        throw new Error('No answers found. Please answer at least one question before submitting.');
+      }
+
+      // Now submit the exam with enhanced retry logic
       setSnackbar({
         open: true,
         message: 'Submitting your exam...',
         severity: 'info'
       });
 
-      console.log(`Submitting exam ${id} for completion`);
+      console.log(`Submitting exam ${id} for completion (${answeredQuestions}/${totalAnswers} questions answered)`);
 
-      // Add retry logic for exam submission
-      let retries = 2;
+      // Enhanced retry logic with exponential backoff
+      let retries = 3;
       let success = false;
       let response = null;
+      let lastError = null;
 
       while (retries > 0 && !success) {
         try {
-          response = await api.post(`/exam/${id}/complete`);
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Submission timeout')), 30000);
+          });
+
+          response = await Promise.race([
+            api.post(`/exam/${id}/complete`),
+            timeoutPromise
+          ]);
+
           success = true;
           console.log('Exam submitted successfully:', response.data);
         } catch (submitError) {
-          console.warn(`Exam submission attempt failed, retries left: ${retries}`, submitError);
+          lastError = submitError;
+          console.warn(`Exam submission attempt failed, retries left: ${retries - 1}`, submitError);
           retries--;
-          if (retries === 0) throw submitError;
-          // Wait a bit before retrying
-          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          if (retries > 0) {
+            // Exponential backoff: wait longer between retries
+            const waitTime = (4 - retries) * 2000; // 2s, 4s, 6s
+            setSnackbar({
+              open: true,
+              message: `Submission failed. Retrying in ${waitTime/1000} seconds... (${retries} attempts left)`,
+              severity: 'warning'
+            });
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
         }
+      }
+
+      if (!success) {
+        throw lastError || new Error('Failed to submit exam after multiple attempts');
+      }
+
+      // Validate response data
+      if (!response.data) {
+        throw new Error('Invalid response from server. Please contact your administrator.');
       }
 
       setExamCompleted(true);
       setExamResult(response.data);
       setSubmitting(false);
 
-      // Show success message
+      // Show success message with score if available
+      const successMessage = response.data.percentage !== undefined
+        ? `Exam submitted successfully! Score: ${response.data.percentage.toFixed(1)}%`
+        : 'Exam submitted successfully! Your results are being processed.';
+
       setSnackbar({
         open: true,
-        message: 'Exam submitted successfully!',
+        message: successMessage,
         severity: 'success'
       });
+
     } catch (err) {
       console.error('Error submitting exam:', err);
-
       setSubmitting(false);
 
-      // Show error message
+      // Provide specific error messages based on error type
+      let errorMessage = 'Failed to submit exam. Please try again.';
+
+      if (err.message.includes('timeout')) {
+        errorMessage = 'Submission timed out. Please check your internet connection and try again.';
+      } else if (err.message.includes('Invalid exam data')) {
+        errorMessage = err.message;
+      } else if (err.message.includes('No answers found')) {
+        errorMessage = err.message;
+      } else if (err.response) {
+        switch (err.response.status) {
+          case 400:
+            errorMessage = 'Invalid submission data. Please check your answers and try again.';
+            break;
+          case 404:
+            errorMessage = 'Exam session not found. Please refresh the page and try again.';
+            break;
+          case 409:
+            errorMessage = 'Exam has already been submitted or is no longer available.';
+            break;
+          case 500:
+            errorMessage = 'Server error. Please try again later or contact your administrator.';
+            break;
+          default:
+            errorMessage = `Submission failed (Error ${err.response.status}). Please try again.`;
+        }
+      }
+
       setSnackbar({
         open: true,
-        message: 'Failed to submit exam. Please try again.',
+        message: errorMessage,
         severity: 'error'
       });
 
-      // Don't set error state unless it's a critical error
-      // This allows the user to try submitting again
+      // Only set critical error state for server errors
       if (err.response && err.response.status >= 500) {
         setError('Server error. Please try again later or contact your administrator.');
       }
@@ -386,28 +542,17 @@ const ExamInterface = () => {
         // First, get the exam details to check if it's locked
         const examRes = await api.get(`/exam/${id}`);
 
-        // Log exam data to help diagnose issues
-        console.log('Exam data received:', {
-          id: examRes.data._id,
-          title: examRes.data.title,
-          sections: examRes.data.sections?.map(s => ({
-            name: s.name,
-            description: s.description,
-            questionCount: s.questions?.length || 0
-          })),
-          totalQuestions: examRes.data.sections?.reduce((total, section) =>
-            total + (section.questions?.length || 0), 0) || 0
-        });
-
         setExam(examRes.data);
-
-        // Initialize selective answering based on exam configuration
-        console.log('Selective answering config:', {
-          allowSelectiveAnswering: examRes.data.allowSelectiveAnswering,
-          sectionBRequiredQuestions: examRes.data.sectionBRequiredQuestions,
-          sectionCRequiredQuestions: examRes.data.sectionCRequiredQuestions
-        });
         setSelectiveAnswering(examRes.data.allowSelectiveAnswering || false);
+
+        // Set the active section to the first section that has questions
+        const firstSectionWithQuestions = examRes.data.sections?.find(section =>
+          section.questions && section.questions.length > 0
+        );
+        if (firstSectionWithQuestions) {
+          setActiveSection(firstSectionWithQuestions.name);
+          setActiveQuestionIndex(0);
+        }
 
         // Check if exam is locked
         if (examRes.data.isLocked) {
@@ -444,7 +589,6 @@ const ExamInterface = () => {
             if (answer.isSelected !== undefined) {
               // Use the saved selection state if available
               isSelected = answer.isSelected;
-              console.log(`Using saved selection state for question ${answer.question._id}: ${isSelected}`);
             } else if (selectiveAnswering && (questionSection === 'B' || questionSection === 'C')) {
               // Get all questions in this section
               const sectionQuestions = examRes.data.sections
@@ -461,8 +605,6 @@ const ExamInterface = () => {
 
               // Select only the first N questions by default
               isSelected = questionIndexInSection < requiredCount;
-
-              console.log(`Question ${answer.question._id} in section ${questionSection} is ${isSelected ? 'selected' : 'not selected'} by default (index ${questionIndexInSection}, required ${requiredCount})`);
             }
 
             initialAnswers[answer.question._id] = {
@@ -518,8 +660,6 @@ const ExamInterface = () => {
 
                 // Select only the first N questions by default
                 isSelected = questionIndexInSection < requiredCount;
-
-                console.log(`Question ${answer.question._id} in section ${questionSection} is ${isSelected ? 'selected' : 'not selected'} by default (index ${questionIndexInSection}, required ${requiredCount})`);
               }
 
               initialAnswers[answer.question._id] = {
@@ -620,14 +760,11 @@ const ExamInterface = () => {
       return;
     }
 
-    console.log('Activating exam security measures');
-
     // Activate security measures
     setSecurityActive(true);
 
     // Show the fullscreen prompt immediately if not in fullscreen mode
     if (!hasRequestedFullscreen.current && !isFullscreen) {
-      console.log('Showing fullscreen prompt immediately');
       hasRequestedFullscreen.current = true;
 
       // Show the fullscreen prompt immediately
@@ -829,13 +966,11 @@ const ExamInterface = () => {
 
     // Check if exam has sections
     if (!exam.sections || exam.sections.length === 0) {
-      console.warn('Exam has no sections');
       return [];
     }
 
     const section = exam.sections.find(s => s.name === activeSection);
     if (!section) {
-      console.warn(`Section ${activeSection} not found`);
       // If the active section doesn't exist, use the first available section
       if (exam.sections.length > 0) {
         setActiveSection(exam.sections[0].name);
@@ -853,18 +988,7 @@ const ExamInterface = () => {
     return questions[activeQuestionIndex] || null;
   }, [getCurrentSectionQuestions, activeQuestionIndex]);
 
-  // Debug function to log exam configuration
-  useEffect(() => {
-    if (exam) {
-      console.log('Exam configuration:', {
-        id: exam._id,
-        title: exam.title,
-        allowSelectiveAnswering: exam.allowSelectiveAnswering,
-        sectionBRequiredQuestions: exam.sectionBRequiredQuestions,
-        sectionCRequiredQuestions: exam.sectionCRequiredQuestions
-      });
-    }
-  }, [exam]);
+
 
   // Handle section change
   const handleSectionChange = (section) => {
@@ -880,7 +1004,6 @@ const ExamInterface = () => {
         setActiveSection(section);
         setActiveQuestionIndex(0);
       } else {
-        console.warn(`Section ${section} has no questions, not changing to it`);
         // Show a message to the user
         setSnackbar({
           open: true,
@@ -1011,95 +1134,227 @@ const ExamInterface = () => {
     }
   };
 
-  // Handle answer change
+  // Enhanced handle answer change for all question types
   const handleAnswerChange = (questionId, value, type) => {
+
     // Don't allow changing already submitted answers
     if (answers[questionId]?.answered && answers[questionId]?.savedToServer) {
       return;
     }
 
-    // For multiple-choice questions, save immediately
-    if (type === 'multiple-choice') {
-      // Update local state
-      setAnswers(prev => ({
-        ...prev,
-        [questionId]: {
-          ...prev[questionId],
-          selectedOption: value,
-          answered: true,
-          savedToServer: false // Mark that it needs to be saved
-        }
-      }));
+    // Create new answer object
+    const newAnswer = { ...answers[questionId] };
 
-      // Submit answer to server immediately for multiple choice
-      saveAnswerToServer(questionId, value, type);
-      return;
+    // Handle different question types appropriately
+    switch (type) {
+      case 'multiple-choice':
+      case 'true-false':
+        newAnswer.selectedOption = value;
+        newAnswer.answered = true;
+        newAnswer.savedToServer = false;
+
+        // Update local state
+        setAnswers(prev => ({
+          ...prev,
+          [questionId]: newAnswer
+        }));
+
+        // Submit answer to server immediately for multiple choice and true/false
+        saveAnswerToServer(questionId, value, type);
+        return;
+
+      case 'matching':
+        newAnswer.matchingAnswers = value.matchingAnswers || value;
+        newAnswer.answered = true;
+        newAnswer.savedToServer = false;
+
+        // Update local state
+        setAnswers(prev => ({
+          ...prev,
+          [questionId]: newAnswer
+        }));
+
+        // Save immediately for interactive questions
+        saveAnswerToServer(questionId, newAnswer.matchingAnswers, type);
+        return;
+
+      case 'ordering':
+        newAnswer.orderingAnswer = value.orderingAnswer || value;
+        newAnswer.answered = true;
+        newAnswer.savedToServer = false;
+
+        // Update local state
+        setAnswers(prev => ({
+          ...prev,
+          [questionId]: newAnswer
+        }));
+
+        // Save immediately for interactive questions
+        saveAnswerToServer(questionId, newAnswer.orderingAnswer, type);
+        return;
+
+      case 'drag-drop':
+        newAnswer.dragDropAnswer = value.dragDropAnswer || value;
+        newAnswer.answered = true;
+        newAnswer.savedToServer = false;
+
+        // Update local state
+        setAnswers(prev => ({
+          ...prev,
+          [questionId]: newAnswer
+        }));
+
+        // Save immediately for interactive questions
+        saveAnswerToServer(questionId, newAnswer.dragDropAnswer, type);
+        return;
+
+      case 'fill-in-blank':
+      case 'open-ended':
+      default:
+        // For text-based questions, just update local state without saving to server
+        newAnswer.textAnswer = value;
+        newAnswer.answered = false; // Don't mark as answered until explicitly saved
+        newAnswer.savedToServer = false;
+        newAnswer.hasChanges = true;
+
+        setAnswers(prev => ({
+          ...prev,
+          [questionId]: newAnswer
+        }));
+        return;
     }
-
-    // For essay questions, just update local state without saving to server
-    // No character limit restrictions - any length is valid
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: {
-        ...prev[questionId],
-        textAnswer: value,
-        // Don't mark as answered until explicitly saved
-        answered: prev[questionId]?.answered || false,
-        savedToServer: false, // Mark that it needs to be saved
-        hasChanges: true // Flag to indicate unsaved changes
-      }
-    }));
   };
 
-  // Function to save answer to server
+  // Enhanced function to save answer to server with better validation and error handling
   const saveAnswerToServer = async (questionId, value, type) => {
     try {
+      // Validate inputs
+      if (!questionId) {
+        throw new Error('Question ID is required');
+      }
+
       // Get the current question
       const question = exam.sections
         .flatMap(section => section.questions)
         .find(q => q._id === questionId);
 
       if (!question) {
-        console.error(`Question ${questionId} not found`);
-        return;
+        throw new Error('Question not found');
       }
 
-      console.log(`Submitting answer for question ${questionId}`);
+      // Detect the actual question type using AI if needed
+      const detectedType = detectQuestionType(question);
+      const actualType = type || detectedType;
 
-      // Show saving indicator
-      setSnackbar({
-        open: true,
-        message: 'Saving your answer...',
-        severity: 'info'
-      });
-
-      // Add error handling and retry logic
-      let retries = 2;
-      let success = false;
-
-      while (retries > 0 && !success) {
-        try {
-          await api.post(`/exam/${id}/answer`, {
-            questionId,
-            [type === 'multiple-choice' ? 'selectedOption' : 'textAnswer']: value
-          });
-          success = true;
-          console.log(`Answer submitted successfully for question ${questionId}`);
-        } catch (submitError) {
-          console.warn(`Attempt failed, retries left: ${retries}`, submitError);
-          retries--;
-          if (retries === 0) throw submitError;
-          // Wait a bit before retrying
-          await new Promise(resolve => setTimeout(resolve, 500));
+      // Validate value based on question type
+      if (!value && actualType !== 'multiple-choice' && actualType !== 'true-false') {
+        // For non-multiple choice questions, require some content
+        if (typeof value === 'string' && value.trim().length === 0) {
+          throw new Error('Answer cannot be empty');
         }
       }
 
-      // Show success message
-      setSnackbar({
-        open: true,
-        message: 'Answer saved successfully',
-        severity: 'success'
-      });
+      // Show saving indicator (less intrusive for frequent saves)
+      console.log(`Saving ${actualType} answer for question ${questionId}`);
+
+      // Enhanced retry logic with exponential backoff
+      let retries = 3;
+      let success = false;
+      let lastError = null;
+
+      while (retries > 0 && !success) {
+        try {
+          const payload = {
+            questionId,
+            questionType: actualType
+          };
+
+          // Ensure value is properly formatted and validated
+          let cleanValue;
+
+          if (typeof value === 'object' && value !== null) {
+            // Handle complex objects (matching, ordering, etc.)
+            cleanValue = value;
+          } else {
+            // Handle string values
+            cleanValue = String(value || '').trim();
+          }
+
+          switch (actualType) {
+            case 'multiple-choice':
+            case 'true-false':
+              payload.selectedOption = cleanValue;
+              break;
+            case 'fill-in-blank':
+              if (!cleanValue) {
+                throw new Error('Fill-in-blank answer cannot be empty');
+              }
+              payload.textAnswer = cleanValue;
+              payload.questionType = 'fill-in-blank';
+              break;
+            case 'matching':
+              if (!value || typeof value !== 'object') {
+                throw new Error('Invalid matching answer format');
+              }
+              payload.matchingAnswers = value;
+              break;
+            case 'ordering':
+              if (!value || typeof value !== 'object') {
+                throw new Error('Invalid ordering answer format');
+              }
+              payload.orderingAnswer = value;
+              break;
+            case 'drag-drop':
+              if (!value || typeof value !== 'object') {
+                throw new Error('Invalid drag-drop answer format');
+              }
+              payload.dragDropAnswer = value;
+              break;
+            case 'open-ended':
+            case 'essay':
+            case 'short-answer':
+            default:
+              payload.textAnswer = cleanValue;
+              break;
+          }
+
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Save timeout')), 10000);
+          });
+
+          await Promise.race([
+            api.post(`/exam/${id}/answer`, payload),
+            timeoutPromise
+          ]);
+
+          success = true;
+          console.log(`Successfully saved ${actualType} answer for question ${questionId}`);
+        } catch (submitError) {
+          lastError = submitError;
+          retries--;
+
+          if (retries > 0) {
+            // Exponential backoff
+            const waitTime = (4 - retries) * 1000; // 1s, 2s, 3s
+            console.warn(`Save attempt failed, retrying in ${waitTime}ms...`, submitError.message);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
+        }
+      }
+
+      if (!success) {
+        throw lastError || new Error('Failed to save answer after multiple attempts');
+      }
+
+      // Show brief success message only for manual saves
+      if (type === 'open-ended' || type === 'essay') {
+        setSnackbar({
+          open: true,
+          message: 'Answer saved successfully',
+          severity: 'success'
+        });
+      }
 
       // Update local state to mark as saved to server
       setAnswers(prev => ({
@@ -1108,29 +1363,48 @@ const ExamInterface = () => {
           ...prev[questionId],
           answered: true,
           savedToServer: true,
-          hasChanges: false
+          hasChanges: false,
+          lastSaved: new Date().toISOString()
         }
       }));
+
     } catch (err) {
-      console.error('Error submitting answer:', err);
+      console.error('Error saving answer:', err);
+
+      // Provide specific error messages
+      let errorMessage = 'Failed to save answer. Your progress is saved locally.';
+
+      if (err.message.includes('timeout')) {
+        errorMessage = 'Save timed out. Please check your connection and try again.';
+      } else if (err.message.includes('empty')) {
+        errorMessage = err.message;
+      } else if (err.message.includes('Invalid')) {
+        errorMessage = 'Invalid answer format. Please check your response.';
+      }
 
       // Show error message to user
       setSnackbar({
         open: true,
-        message: 'Failed to save answer. Your progress is saved locally.',
+        message: errorMessage,
         severity: 'warning'
       });
 
-      // Don't revert the local state - keep the answer locally even if server save fails
-      // This way the student doesn't lose their work
+      // Update local state to indicate save failed but keep the answer
       setAnswers(prev => ({
         ...prev,
         [questionId]: {
           ...prev[questionId],
+          answered: true,
           savedToServer: false,
-          hasChanges: true
+          hasChanges: true,
+          lastSaveError: err.message
         }
       }));
+
+      // Re-throw for critical errors that should stop the process
+      if (err.message.includes('Question not found') || err.message.includes('Question ID is required')) {
+        throw err;
+      }
     }
   };
 
@@ -1146,7 +1420,6 @@ const ExamInterface = () => {
       .find(q => q._id === questionId);
 
     if (!question) {
-      console.error(`Question ${questionId} not found in exam`);
       return;
     }
 
@@ -1178,7 +1451,7 @@ const ExamInterface = () => {
       ? (exam.sectionBRequiredQuestions || 3)
       : (exam.sectionCRequiredQuestions || 1);
 
-    console.log(`Selection check: ${selectedInSection} selected in section ${question.section}, ${requiredCount} required`);
+
 
     // Check if we're trying to deselect when we're at the minimum
     if (!newIsSelected && selectedInSection < requiredCount) {
@@ -1198,14 +1471,10 @@ const ExamInterface = () => {
 
     // Update on the server
     try {
-      console.log(`Sending selection update to server: Question ${questionId} in section ${question.section} to ${newIsSelected ? 'selected' : 'deselected'}`);
-
-      const response = await api.post(`/exam/${id}/select-question`, {
+      await api.post(`/api/exam/${id}/select-question`, {
         questionId,
         isSelected: newIsSelected
       });
-
-      console.log('Server response:', response.data);
 
       // Show success message
       setSnackbar({
@@ -1216,7 +1485,7 @@ const ExamInterface = () => {
         severity: 'success'
       });
 
-      console.log(`Question selection updated: Question ${questionId} is now ${newIsSelected ? 'selected' : 'deselected'}`);
+
     } catch (error) {
       console.error('Error updating question selection:', error);
 
@@ -1473,11 +1742,38 @@ const ExamInterface = () => {
   // Security features are implemented in the navigation prevention effect
 
   return (
-    <Container
-      maxWidth="lg"
-      sx={{ mt: 4, mb: 4 }}
-      className={securityActive && !examCompleted ? 'exam-secure-content' : ''}
+    <Box
+      sx={{
+        minHeight: '100vh',
+        bgcolor: mode === 'dark'
+          ? 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%)'
+          : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 50%, #e8f4f8 100%)',
+        backgroundAttachment: 'fixed',
+        py: 2
+      }}
     >
+      <Container
+        maxWidth="lg"
+        sx={{
+          mt: 2,
+          mb: 4,
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: mode === 'dark'
+              ? 'radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.1) 0%, transparent 50%)'
+              : 'radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.05) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.05) 0%, transparent 50%)',
+            pointerEvents: 'none',
+            zIndex: -1
+          }
+        }}
+        className={securityActive && !examCompleted ? 'exam-secure-content' : ''}
+      >
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
@@ -1575,13 +1871,23 @@ const ExamInterface = () => {
 
       {/* Exam Header */}
       <Paper
-        elevation={3}
+        elevation={mode === 'dark' ? 8 : 3}
         sx={{
           p: 3,
           mb: 4,
-          borderRadius: 0, // Remove rounded corners
+          borderRadius: 2,
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          bgcolor: mode === 'dark'
+            ? alpha(theme.palette.background.paper, 0.95)
+            : 'background.paper',
+          backdropFilter: 'blur(10px)',
+          border: mode === 'dark'
+            ? `1px solid ${alpha(theme.palette.primary.main, 0.3)}`
+            : 'none',
+          boxShadow: mode === 'dark'
+            ? '0 8px 32px rgba(0,0,0,0.4)'
+            : '0 4px 20px rgba(0,0,0,0.1)'
         }}
       >
         <Grid container spacing={2} alignItems="center">
@@ -1669,7 +1975,22 @@ const ExamInterface = () => {
       <Grid container spacing={4}>
         {/* Sidebar */}
         <Grid item xs={12} md={3}>
-          <Paper elevation={2} sx={{ p: 2, borderRadius: 0 }}>
+          <Paper
+            elevation={mode === 'dark' ? 6 : 2}
+            sx={{
+              p: 2,
+              borderRadius: 2,
+              bgcolor: mode === 'dark'
+                ? alpha(theme.palette.background.paper, 0.9)
+                : 'background.paper',
+              border: mode === 'dark'
+                ? `1px solid ${alpha(theme.palette.divider, 0.2)}`
+                : 'none',
+              boxShadow: mode === 'dark'
+                ? '0 6px 24px rgba(0,0,0,0.3)'
+                : '0 2px 12px rgba(0,0,0,0.08)'
+            }}
+          >
             <Typography variant="h6" fontWeight="bold" gutterBottom>
               Sections
             </Typography>
@@ -1812,11 +2133,17 @@ const ExamInterface = () => {
                   sx={{
                     mb: 3,
                     p: 2,
-                    bgcolor: 'background.paper',
-                    borderRadius: '4px',
+                    bgcolor: mode === 'dark'
+                      ? alpha(theme.palette.primary.main, 0.1)
+                      : alpha(theme.palette.primary.main, 0.05),
+                    borderRadius: '8px',
                     border: '1px solid',
-                    borderColor: 'primary.light',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    borderColor: mode === 'dark'
+                      ? alpha(theme.palette.primary.main, 0.3)
+                      : 'primary.light',
+                    boxShadow: mode === 'dark'
+                      ? '0 4px 12px rgba(25, 118, 210, 0.2)'
+                      : '0 2px 8px rgba(25, 118, 210, 0.1)'
                   }}
                 >
                   <Typography variant="subtitle1" fontWeight="bold" color="primary.main" gutterBottom>
@@ -1965,19 +2292,7 @@ const ExamInterface = () => {
                     </Box>
                   )}
 
-                  {/* Debug information - only visible during development */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <Box sx={{ mt: 2, p: 1, bgcolor: 'grey.100', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                      <Typography variant="caption" component="div" sx={{ fontWeight: 'bold' }}>
-                        Debug Info (only visible in development):
-                      </Typography>
-                      <Typography variant="caption" component="div">
-                        Section: {activeSection} |
-                        Questions: {getCurrentSectionQuestions().length} |
-                        Current Question Index: {activeQuestionIndex}
-                      </Typography>
-                    </Box>
-                  )}
+
                 </Box>
 
                 {questionsLoading ? (
@@ -2038,28 +2353,8 @@ const ExamInterface = () => {
                           />
                         )}
                         <Chip
-                          label={
-                            currentQuestion.type === 'multiple-choice'
-                              ? 'Multiple Choice'
-                              : currentQuestion.type === 'true-false'
-                                ? 'True/False'
-                                : currentQuestion.type === 'fill-in-blank'
-                                  ? 'Fill in the Blank'
-                                  : currentQuestion.section === 'B'
-                                    ? 'Short Answer'
-                                    : 'Essay Question'
-                          }
-                          color={
-                            currentQuestion.type === 'multiple-choice'
-                              ? 'primary'
-                              : currentQuestion.type === 'true-false'
-                                ? 'success'
-                                : currentQuestion.type === 'fill-in-blank'
-                                  ? 'warning'
-                                  : currentQuestion.section === 'B'
-                                    ? 'info'
-                                    : 'secondary'
-                          }
+                          label={getQuestionTypeLabel(currentQuestion.type, currentQuestion.section, currentQuestion)}
+                          color={getQuestionTypeColor(currentQuestion.type, currentQuestion.section, currentQuestion)}
                           size="small"
                         />
                       </Box>
@@ -2114,15 +2409,7 @@ const ExamInterface = () => {
                       {/* Question metadata */}
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1 }}>
                         <Typography variant="caption" color="text.secondary">
-                          Type: {
-                            currentQuestion.type === 'multiple-choice'
-                              ? 'Multiple Choice'
-                              : currentQuestion.type === 'true-false'
-                                ? 'True/False'
-                                : currentQuestion.type === 'fill-in-blank'
-                                  ? 'Fill in the Blank'
-                                  : 'Open-ended'
-                          }
+                          Type: {getQuestionTypeLabel(currentQuestion.type, currentQuestion.section, currentQuestion)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           Points: {currentQuestion.points || 1}
@@ -2130,8 +2417,47 @@ const ExamInterface = () => {
                       </Box>
                     </Box>
 
-                    <Box sx={{ mt: 4 }}>
-                      {currentQuestion.type === 'multiple-choice' ? (
+                    {/* Enhanced Question Content Area */}
+                    <Box sx={{
+                      mt: 4,
+                      p: { xs: 2, sm: 3 },
+                      bgcolor: mode === 'dark'
+                        ? alpha(theme.palette.background.default, 0.6)
+                        : 'background.default',
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: mode === 'dark'
+                        ? alpha(theme.palette.divider, 0.3)
+                        : 'divider',
+                      minHeight: '400px',
+                      position: 'relative',
+                      backdropFilter: mode === 'dark' ? 'blur(10px)' : 'none',
+                      boxShadow: mode === 'dark'
+                        ? '0 4px 20px rgba(0,0,0,0.2)'
+                        : '0 2px 8px rgba(0,0,0,0.05)'
+                    }}>
+                      {/* Question Type Header */}
+                      <Box sx={{
+                        mb: 3,
+                        p: 2,
+                        bgcolor: getQuestionTypeColor(currentQuestion.type, currentQuestion.section, currentQuestion) + '.lighter',
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: getQuestionTypeColor(currentQuestion.type, currentQuestion.section, currentQuestion) + '.main'
+                      }}>
+                        <Typography variant="h6" fontWeight="bold" color={getQuestionTypeColor(currentQuestion.type, currentQuestion.section, currentQuestion) + '.main'}>
+                          {getQuestionTypeLabel(currentQuestion.type, currentQuestion.section, currentQuestion)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Answer this {getQuestionTypeLabel(currentQuestion.type, currentQuestion.section, currentQuestion).toLowerCase()} carefully
+                        </Typography>
+                      </Box>
+
+                      {(() => {
+                        const detectedType = detectQuestionType(currentQuestion);
+
+                        if (detectedType === 'multiple-choice') {
+                          return (
                         <FormControl component="fieldset" fullWidth>
                           <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
                             <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -2205,7 +2531,9 @@ const ExamInterface = () => {
                             </Box>
                           )}
                         </FormControl>
-                      ) : currentQuestion.type === 'true-false' ? (
+                          );
+                        } else if (detectedType === 'true-false') {
+                          return (
                         <FormControl component="fieldset" fullWidth>
                           <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
                             <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -2275,7 +2603,18 @@ const ExamInterface = () => {
                             </Box>
                           )}
                         </FormControl>
-                      ) : currentQuestion.type === 'fill-in-blank' ? (
+                          );
+                        } else if (detectedType === 'fill-in-blank') {
+                          return (
+                            <FillInBlankQuestion
+                              question={currentQuestion}
+                              answer={answers[currentQuestion._id]}
+                              onAnswerChange={handleAnswerChange}
+                              disabled={answers[currentQuestion._id]?.answered}
+                            />
+                          );
+                        } else if (detectedType === 'enhanced-fill-in-blank') {
+                          return (
                         <Box>
                           <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
                             <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -2288,14 +2627,24 @@ const ExamInterface = () => {
                           <Box
                             sx={{
                               mb: 3,
-                              p: 2,
-                              bgcolor: alpha(theme.palette.warning.main, 0.05),
-                              border: '1px solid',
-                              borderColor: alpha(theme.palette.warning.main, 0.2),
-                              borderRadius: 1
+                              p: 3,
+                              bgcolor: mode === 'dark'
+                                ? alpha(theme.palette.warning.main, 0.1)
+                                : alpha(theme.palette.warning.main, 0.05),
+                              border: '2px solid',
+                              borderColor: mode === 'dark'
+                                ? alpha(theme.palette.warning.main, 0.5)
+                                : alpha(theme.palette.warning.main, 0.3),
+                              borderRadius: 2,
+                              boxShadow: mode === 'dark'
+                                ? '0 4px 12px rgba(255,193,7,0.2)'
+                                : '0 2px 8px rgba(0,0,0,0.1)'
                             }}
                           >
-                            <Typography variant="body1">
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: 'warning.dark' }}>
+                              Complete the sentence:
+                            </Typography>
+                            <Typography variant="body1" sx={{ fontSize: '1.1rem', lineHeight: 1.6 }}>
                               {currentQuestion.text.split('_____').map((part, index, array) => (
                                 <React.Fragment key={index}>
                                   {part}
@@ -2304,17 +2653,24 @@ const ExamInterface = () => {
                                       component="span"
                                       sx={{
                                         display: 'inline-block',
-                                        px: 1,
-                                        mx: 0.5,
-                                        borderBottom: '2px solid',
-                                        borderColor: 'warning.main',
+                                        px: 2,
+                                        py: 0.5,
+                                        mx: 1,
+                                        borderBottom: '3px solid',
+                                        borderColor: answers[currentQuestion._id]?.textAnswer ? 'success.main' : 'warning.main',
+                                        backgroundColor: answers[currentQuestion._id]?.textAnswer ?
+                                          alpha(theme.palette.success.main, 0.1) :
+                                          alpha(theme.palette.warning.main, 0.1),
                                         fontWeight: 'bold',
-                                        color: 'warning.main',
-                                        minWidth: '80px',
-                                        textAlign: 'center'
+                                        color: answers[currentQuestion._id]?.textAnswer ? 'success.dark' : 'warning.main',
+                                        minWidth: '120px',
+                                        textAlign: 'center',
+                                        borderRadius: 1,
+                                        transition: 'all 0.3s ease',
+                                        fontSize: '1.1rem'
                                       }}
                                     >
-                                      {answers[currentQuestion._id]?.textAnswer || 'BLANK'}
+                                      {answers[currentQuestion._id]?.textAnswer || '[ FILL IN THE BLANK ]'}
                                     </Box>
                                   )}
                                 </React.Fragment>
@@ -2329,47 +2685,119 @@ const ExamInterface = () => {
                             onChange={(e) => handleAnswerChange(
                               currentQuestion._id,
                               e.target.value,
-                              'open-ended'
+                              'fill-in-blank'
                             )}
+                            onKeyDown={(e) => {
+                              // Allow Enter to save the answer
+                              if (e.key === 'Enter' && answers[currentQuestion._id]?.hasChanges) {
+                                e.preventDefault();
+                                saveAnswerToServer(
+                                  currentQuestion._id,
+                                  answers[currentQuestion._id].textAnswer,
+                                  'fill-in-blank'
+                                );
+                              }
+                            }}
                             disabled={answers[currentQuestion._id]?.answered}
                             variant="outlined"
+                            autoComplete="off"
+                            spellCheck={true}
+                            autoFocus={true}
                             sx={{
                               mt: 2,
                               '& .MuiOutlinedInput-root': {
                                 '& fieldset': {
-                                  borderColor: 'warning.light',
+                                  borderColor: mode === 'dark'
+                                    ? alpha(theme.palette.warning.main, 0.6)
+                                    : 'warning.light',
+                                  borderWidth: '2px'
                                 },
                                 '&:hover fieldset': {
                                   borderColor: 'warning.main',
+                                  borderWidth: '2px'
                                 },
                                 '&.Mui-focused fieldset': {
                                   borderColor: 'warning.main',
+                                  borderWidth: '3px',
+                                  boxShadow: mode === 'dark'
+                                    ? `0 0 0 3px ${alpha(theme.palette.warning.main, 0.3)}`
+                                    : `0 0 0 3px ${alpha(theme.palette.warning.main, 0.2)}`
                                 },
+                                '& input': {
+                                  fontSize: '1.2rem',
+                                  fontWeight: 600,
+                                  textAlign: 'center',
+                                  padding: '16px',
+                                  backgroundColor: mode === 'dark'
+                                    ? alpha(theme.palette.warning.main, 0.05)
+                                    : alpha(theme.palette.warning.main, 0.02),
+                                  color: theme.palette.text.primary
+                                }
                               },
                             }}
+                            inputProps={{
+                              maxLength: 200, // Reasonable limit for fill-in-blank
+                              'aria-label': 'Fill in the blank answer',
+                              style: { textAlign: 'center' }
+                            }}
+                            helperText={
+                              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 1 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  💡 Tip: Press Enter to save your answer quickly
+                                </Typography>
+                              </Box>
+                            }
                           />
 
-                          {/* Save button for fill-in-blank */}
-                          {answers[currentQuestion._id]?.hasChanges && (
-                            <Button
-                              variant="contained"
-                              color="warning"
-                              size="medium"
-                              onClick={() => saveAnswerToServer(
-                                currentQuestion._id,
-                                answers[currentQuestion._id].textAnswer,
-                                'open-ended'
+                          {/* Character count and save button for fill-in-blank */}
+                          <Box sx={{ mt: 1 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography variant="caption" color="text.secondary">
+                                {answers[currentQuestion._id]?.textAnswer?.length || 0} / 200 characters
+                              </Typography>
+
+                              {answers[currentQuestion._id]?.textAnswer && (
+                                <Typography variant="caption" color="success.main">
+                                  ✓ Answer entered
+                                </Typography>
                               )}
-                              startIcon={<Save />}
-                              sx={{
-                                mt: 2,
-                                width: '100%',
-                                py: 1
-                              }}
-                            >
-                              Save Answer
-                            </Button>
-                          )}
+                            </Box>
+
+                            {answers[currentQuestion._id]?.hasChanges && (
+                              <Button
+                                variant="contained"
+                                color="warning"
+                                size="medium"
+                                onClick={() => saveAnswerToServer(
+                                  currentQuestion._id,
+                                  answers[currentQuestion._id].textAnswer,
+                                  'fill-in-blank'
+                                )}
+                                startIcon={<Save />}
+                                sx={{
+                                  mt: 2,
+                                  width: '100%',
+                                  py: 1.5,
+                                  fontWeight: 'bold',
+                                  borderRadius: '8px',
+                                  background: mode === 'dark'
+                                    ? `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})`
+                                    : `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})`,
+                                  boxShadow: mode === 'dark'
+                                    ? '0 6px 20px rgba(255, 152, 0, 0.3)'
+                                    : '0 4px 12px rgba(255, 152, 0, 0.2)',
+                                  '&:hover': {
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: mode === 'dark'
+                                      ? '0 8px 25px rgba(255, 152, 0, 0.4)'
+                                      : '0 6px 16px rgba(255, 152, 0, 0.3)',
+                                  }
+                                }}
+                              >
+                                Save Fill-in Answer
+                              </Button>
+                            )}
+                          </Box>
 
                           {/* Saved indicator for fill-in-blank */}
                           {answers[currentQuestion._id]?.savedToServer && (
@@ -2381,7 +2809,36 @@ const ExamInterface = () => {
                             </Box>
                           )}
                         </Box>
-                      ) : (
+                          );
+                        } else if (detectedType === 'matching') {
+                          return (
+                        <MatchingQuestion
+                          question={currentQuestion}
+                          answer={answers[currentQuestion._id]}
+                          onAnswerChange={handleAnswerChange}
+                          disabled={answers[currentQuestion._id]?.answered}
+                        />
+                          );
+                        } else if (detectedType === 'ordering') {
+                          return (
+                            <OrderingQuestion
+                              question={currentQuestion}
+                              answer={answers[currentQuestion._id]}
+                              onAnswerChange={handleAnswerChange}
+                              disabled={answers[currentQuestion._id]?.answered}
+                            />
+                          );
+                        } else if (detectedType === 'drag-drop') {
+                          return (
+                            <DragDropQuestion
+                              question={currentQuestion}
+                              answer={answers[currentQuestion._id]}
+                              onAnswerChange={handleAnswerChange}
+                              disabled={answers[currentQuestion._id]?.answered}
+                            />
+                          );
+                        } else {
+                          return (
                         <Box sx={{ mt: 2 }}>
                           <Typography variant="body1" color="text.secondary" gutterBottom>
                             <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -2508,7 +2965,9 @@ const ExamInterface = () => {
                             )}
                           </Box>
                         </Box>
-                      )}
+                          );
+                        }
+                      })()}
                     </Box>
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
@@ -2889,7 +3348,981 @@ const ExamInterface = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Container>
+      </Container>
+    </Box>
+  );
+};
+
+// Enhanced Fill-in-the-Blank Question Component
+const FillInBlankQuestion = ({ question, answer, onAnswerChange, disabled }) => {
+  const theme = useTheme();
+  const { mode } = useThemeMode();
+  const [localAnswer, setLocalAnswer] = useState(answer?.textAnswer || '');
+
+  const handleInputChange = (event) => {
+    const value = event.target.value;
+    setLocalAnswer(value);
+    onAnswerChange(question._id, value, 'fill-in-blank');
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      // Save the answer when Enter is pressed
+      onAnswerChange(question._id, localAnswer, 'fill-in-blank');
+    }
+  };
+
+  // Process the question text to highlight blanks
+  const processQuestionText = (text) => {
+    // Replace various blank patterns with interactive input fields
+    const blankPatterns = [
+      { pattern: /_{3,}/g, replacement: '___BLANK___' },
+      { pattern: /\.{4,}/g, replacement: '___BLANK___' },
+      { pattern: /\[.*?\]/g, replacement: '___BLANK___' },
+      { pattern: /\(.*?\)/g, replacement: '___BLANK___' }
+    ];
+
+    let processedText = text;
+    blankPatterns.forEach(({ pattern, replacement }) => {
+      processedText = processedText.replace(pattern, replacement);
+    });
+
+    return processedText;
+  };
+
+  const processedText = processQuestionText(question.text);
+  const parts = processedText.split('___BLANK___');
+
+  return (
+    <Box>
+      <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
+        Fill in the Blank
+      </Typography>
+
+      {/* Question with interactive blanks */}
+      <Box sx={{ mb: 4, p: 3, bgcolor: mode === 'dark' ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.warning.main, 0.05), borderRadius: 2, border: `1px solid ${alpha(theme.palette.warning.main, 0.3)}` }}>
+        <Typography variant="body1" sx={{ fontSize: '1.1rem', lineHeight: 1.8 }}>
+          {parts.map((part, index) => (
+            <React.Fragment key={index}>
+              {part}
+              {index < parts.length - 1 && (
+                <Box
+                  component="span"
+                  sx={{
+                    display: 'inline-block',
+                    px: 2,
+                    py: 0.5,
+                    mx: 1,
+                    borderBottom: '3px solid',
+                    borderColor: localAnswer ? 'success.main' : 'warning.main',
+                    backgroundColor: localAnswer ?
+                      alpha(theme.palette.success.main, 0.1) :
+                      alpha(theme.palette.warning.main, 0.1),
+                    fontWeight: 'bold',
+                    color: localAnswer ? 'success.dark' : 'warning.main',
+                    minWidth: '120px',
+                    textAlign: 'center',
+                    borderRadius: 1,
+                    transition: 'all 0.3s ease',
+                    fontSize: '1.1rem'
+                  }}
+                >
+                  {localAnswer || '[ FILL IN THE BLANK ]'}
+                </Box>
+              )}
+            </React.Fragment>
+          ))}
+        </Typography>
+      </Box>
+
+      {/* Answer Input */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', color: 'warning.main' }}>
+          Your Answer:
+        </Typography>
+        <TextField
+          fullWidth
+          variant="outlined"
+          value={localAnswer}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+          placeholder="Type your answer here..."
+          autoFocus
+          spellCheck={true}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              fontSize: '1.1rem',
+              bgcolor: mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'background.paper',
+              '&.Mui-focused': {
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'warning.main',
+                  borderWidth: 2
+                }
+              }
+            }
+          }}
+          helperText={
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">
+                Press Enter to save quickly
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {localAnswer.length}/200 characters
+              </Typography>
+            </Box>
+          }
+        />
+      </Box>
+
+      {/* Save Button */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+        <Button
+          variant="contained"
+          color="warning"
+          onClick={() => onAnswerChange(question._id, localAnswer, 'fill-in-blank')}
+          disabled={disabled || !localAnswer.trim()}
+          startIcon={<Save />}
+          sx={{
+            borderRadius: '12px',
+            px: 4,
+            py: 1,
+            fontWeight: 'bold',
+            textTransform: 'none',
+            boxShadow: mode === 'dark' ? '0 4px 12px rgba(255, 152, 0, 0.3)' : '0 2px 8px rgba(255, 152, 0, 0.2)'
+          }}
+        >
+          Save Answer
+        </Button>
+      </Box>
+
+      {/* Status indicator */}
+      {answer?.answered && (
+        <Alert severity="success" sx={{ mt: 2, borderRadius: '12px' }}>
+          <Typography variant="body2" fontWeight="medium">
+            ✓ Answer saved successfully
+          </Typography>
+        </Alert>
+      )}
+    </Box>
+  );
+};
+
+// Enhanced AI-powered question type detection with advanced pattern recognition
+const detectQuestionType = (question) => {
+  const text = question.text?.toLowerCase() || '';
+  const originalText = question.text || '';
+  const hasOptions = question.options && question.options.length > 0;
+
+  // Check for explicit type first, but validate it
+  if (question.type && question.type !== 'open-ended') {
+    // Validate the explicit type against the content
+    if (question.type === 'multiple-choice' && (!hasOptions || question.options.length < 2)) {
+      // Override incorrect type - this is likely a fill-in-blank
+    } else {
+      return question.type;
+    }
+  }
+
+  // PRIORITY 1: Fill-in-the-blank detection (highest priority)
+  const fillInPatterns = [
+    /_{3,}/, // Multiple underscores (_____)
+    /_{2,}/, // Two or more underscores (____)
+    /\[.*?\]/, // Square brackets [answer]
+    /\(.*?\)/, // Parentheses for blanks (answer)
+    /\.\.\.\.\./i, // Dots (....)
+    /fill.*in.*blank/i,
+    /complete.*sentence/i,
+    /insert.*word/i,
+    /missing.*word/i,
+    /blank.*space/i,
+    /choose.*correct.*word/i,
+    /supply.*missing/i
+  ];
+
+  const hasFillInPattern = fillInPatterns.some(pattern => pattern.test(originalText));
+
+  // Also check for common fill-in indicators
+  const fillInIndicators = [
+    originalText.includes('___'),
+    originalText.includes('....'),
+    originalText.includes('[   ]'),
+    originalText.includes('(   )'),
+    originalText.includes('______'),
+    /\b\w+\s+_+\s+\w+/i.test(originalText), // word ___ word pattern
+    /\b_+\s+\w+/i.test(originalText), // ___ word pattern
+    /\w+\s+_+\b/i.test(originalText), // word ___ pattern
+  ];
+
+  const hasBlankIndicators = fillInIndicators.some(indicator => indicator);
+
+  // If it has fill-in patterns but also has options, it's still fill-in-blank
+  if (hasFillInPattern || hasBlankIndicators) {
+    return 'fill-in-blank';
+  }
+
+  // PRIORITY 2: True/False detection
+  if (hasOptions && question.options.length === 2) {
+    const optionTexts = question.options.map(opt => (opt.text || opt)?.toLowerCase() || '');
+    const isTrueFalse = optionTexts.some(opt =>
+      opt.includes('true') || opt.includes('false') ||
+      opt.includes('yes') || opt.includes('no') ||
+      opt.includes('correct') || opt.includes('incorrect') ||
+      opt === 't' || opt === 'f' ||
+      opt === 'true' || opt === 'false' ||
+      opt === 'yes' || opt === 'no'
+    );
+
+    // Also check question text for true/false indicators
+    const questionHasTrueFalse = /true.*false|false.*true|correct.*incorrect|yes.*no/i.test(text);
+
+    if (isTrueFalse || questionHasTrueFalse) {
+      return 'true-false';
+    }
+  }
+
+  // PRIORITY 3: Multiple choice detection (must have 3+ valid options)
+  if (hasOptions && question.options.length >= 3) {
+    // Validate that options are meaningful (not just blanks or placeholders)
+    const validOptions = question.options.filter(opt => {
+      const optText = (opt.text || opt || '').trim();
+      return optText.length > 0 &&
+             !optText.match(/^_+$/) &&
+             !optText.match(/^\.*$/) &&
+             optText !== '...' &&
+             optText !== '___';
+    });
+
+    if (validOptions.length >= 3) {
+      return 'multiple-choice';
+    }
+  }
+
+  // PRIORITY 4: Essay detection
+  const essayPatterns = [
+    /explain/i, /describe/i, /discuss/i, /analyze/i, /evaluate/i,
+    /compare/i, /contrast/i, /justify/i, /argue/i, /elaborate/i,
+    /essay/i, /paragraph/i, /detailed/i, /comprehensive/i,
+    /write.*about/i, /give.*account/i, /examine/i, /assess/i
+  ];
+
+  const isEssay = essayPatterns.some(pattern => pattern.test(text)) ||
+                 text.length > 300 ||
+                 question.section === 'C' ||
+                 originalText.length > 300;
+
+  if (isEssay) return 'essay';
+
+  // PRIORITY 5: Short answer detection
+  const shortAnswerPatterns = [
+    /what.*is/i, /who.*is/i, /when.*did/i, /where.*is/i, /how.*many/i,
+    /define/i, /identify/i, /name/i, /list/i, /state/i, /mention/i,
+    /give.*example/i, /provide.*example/i, /calculate/i, /find/i
+  ];
+
+  const isShortAnswer = shortAnswerPatterns.some(pattern => pattern.test(text)) ||
+                       (!hasOptions && text.length < 300 && text.length > 10);
+
+  if (isShortAnswer) return 'short-answer';
+
+  // FALLBACK: Section-based detection with validation
+  if (question.section === 'A') {
+    // Section A should be multiple choice, but if no valid options, treat as fill-in
+    if (hasOptions && question.options.length >= 2) {
+      return 'multiple-choice';
+    } else {
+      return 'fill-in-blank';
+    }
+  }
+
+  if (question.section === 'B') return 'short-answer';
+  if (question.section === 'C') return 'essay';
+
+  // Final fallback - analyze content one more time
+  if (!hasOptions || question.options.length === 0) {
+    if (originalText.includes('___') || originalText.includes('....')) {
+      return 'fill-in-blank';
+    }
+    return 'short-answer';
+  }
+
+  return 'multiple-choice'; // Ultimate fallback
+};
+
+// Helper functions for question types
+const getQuestionTypeLabel = (type, section, question = null) => {
+  // Use AI detection if question object is provided
+  const detectedType = question ? detectQuestionType(question) : type;
+
+  switch (detectedType) {
+    case 'multiple-choice':
+      return 'Multiple Choice';
+    case 'true-false':
+      return 'True/False';
+    case 'fill-in-blank':
+      return 'Fill in the Blank';
+    case 'matching':
+      return 'Matching';
+    case 'ordering':
+      return 'Ordering';
+    case 'drag-drop':
+      return 'Drag & Drop';
+    case 'essay':
+      return 'Essay Question';
+    case 'short-answer':
+      return 'Short Answer';
+    case 'open-ended':
+      return section === 'B' ? 'Short Answer' : 'Essay Question';
+    default:
+      return section === 'B' ? 'Short Answer' : 'Essay Question';
+  }
+};
+
+const getQuestionTypeColor = (type, section, question = null) => {
+  // Use AI detection if question object is provided
+  const detectedType = question ? detectQuestionType(question) : type;
+
+  switch (detectedType) {
+    case 'multiple-choice':
+      return 'primary';
+    case 'true-false':
+      return 'success';
+    case 'fill-in-blank':
+      return 'warning';
+    case 'matching':
+      return 'info';
+    case 'ordering':
+      return 'secondary';
+    case 'drag-drop':
+      return 'error';
+    case 'essay':
+      return 'secondary';
+    case 'short-answer':
+      return 'info';
+    case 'open-ended':
+      return section === 'B' ? 'info' : 'secondary';
+    default:
+      return section === 'B' ? 'info' : 'secondary';
+  }
+};
+
+// Enhanced Matching Question Component
+const MatchingQuestion = ({ question, answer, onAnswerChange, disabled }) => {
+  const [matches, setMatches] = useState(answer?.matchingAnswers || []);
+  const [selectedLeft, setSelectedLeft] = useState(null);
+
+  const handleMatch = (leftIndex, rightIndex) => {
+    if (disabled) return;
+
+    const newMatches = [...matches];
+
+    // Remove any existing match for this left item
+    const existingMatchIndex = newMatches.findIndex(m => m.left === leftIndex);
+    if (existingMatchIndex >= 0) {
+      newMatches.splice(existingMatchIndex, 1);
+    }
+
+    // Remove any existing match for this right item
+    const existingRightMatchIndex = newMatches.findIndex(m => m.right === rightIndex);
+    if (existingRightMatchIndex >= 0) {
+      newMatches.splice(existingRightMatchIndex, 1);
+    }
+
+    // Add new match
+    newMatches.push({ left: leftIndex, right: rightIndex });
+
+    setMatches(newMatches);
+    setSelectedLeft(null);
+    onAnswerChange(question._id, { matchingAnswers: newMatches }, 'matching');
+  };
+
+  const handleLeftClick = (leftIndex) => {
+    if (disabled) return;
+    setSelectedLeft(selectedLeft === leftIndex ? null : leftIndex);
+  };
+
+  const handleRightClick = (rightIndex) => {
+    if (disabled) return;
+    if (selectedLeft !== null) {
+      handleMatch(selectedLeft, rightIndex);
+    }
+  };
+
+  const clearMatch = (matchIndex) => {
+    if (disabled) return;
+    const newMatches = [...matches];
+    newMatches.splice(matchIndex, 1);
+    setMatches(newMatches);
+    onAnswerChange(question._id, { matchingAnswers: newMatches }, 'matching');
+  };
+
+  const leftColumn = question.matchingPairs?.leftColumn || [];
+  const rightColumn = question.matchingPairs?.rightColumn || [];
+
+  return (
+    <Box>
+      <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+        <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <HelpOutline sx={{ mr: 1, fontSize: 20, color: 'info.main' }} />
+          Match items from Column A with items from Column B. Click an item in Column A, then click its match in Column B.
+        </Box>
+      </Typography>
+
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6}>
+          <Paper sx={{ p: 2, bgcolor: 'info.lighter', mb: 2 }}>
+            <Typography variant="h6" gutterBottom color="info.main" fontWeight="bold">
+              Column A
+            </Typography>
+          </Paper>
+          {leftColumn.map((item, index) => {
+            const isMatched = matches.find(m => m.left === index);
+            const isSelected = selectedLeft === index;
+
+            return (
+              <Paper
+                key={index}
+                onClick={() => handleLeftClick(index)}
+                sx={{
+                  p: 2,
+                  mb: 1,
+                  cursor: disabled ? 'default' : 'pointer',
+                  bgcolor: isMatched ? 'success.lighter' : isSelected ? 'primary.lighter' : 'background.paper',
+                  border: '2px solid',
+                  borderColor: isMatched ? 'success.main' : isSelected ? 'primary.main' : 'divider',
+                  transition: 'all 0.2s ease',
+                  '&:hover': disabled ? {} : {
+                    transform: 'translateY(-2px)',
+                    boxShadow: 2,
+                    borderColor: isMatched ? 'success.dark' : 'primary.main'
+                  }
+                }}
+              >
+                <Typography variant="body1" fontWeight={isSelected ? 'bold' : 'normal'}>
+                  <Chip
+                    label={index + 1}
+                    size="small"
+                    color={isMatched ? 'success' : isSelected ? 'primary' : 'default'}
+                    sx={{ mr: 1, fontWeight: 'bold' }}
+                  />
+                  {item}
+                </Typography>
+                {isMatched && (
+                  <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                    ✓ Matched with {String.fromCharCode(65 + isMatched.right)}
+                  </Typography>
+                )}
+              </Paper>
+            );
+          })}
+        </Grid>
+
+        <Grid item xs={12} sm={6}>
+          <Paper sx={{ p: 2, bgcolor: 'secondary.lighter', mb: 2 }}>
+            <Typography variant="h6" gutterBottom color="secondary.main" fontWeight="bold">
+              Column B
+            </Typography>
+          </Paper>
+          {rightColumn.map((item, index) => {
+            const isMatched = matches.find(m => m.right === index);
+
+            return (
+              <Paper
+                key={index}
+                onClick={() => handleRightClick(index)}
+                sx={{
+                  p: 2,
+                  mb: 1,
+                  cursor: disabled ? 'default' : selectedLeft !== null ? 'pointer' : 'not-allowed',
+                  bgcolor: isMatched ? 'success.lighter' : 'background.paper',
+                  border: '2px solid',
+                  borderColor: isMatched ? 'success.main' : 'divider',
+                  opacity: disabled ? 0.7 : selectedLeft !== null || isMatched ? 1 : 0.6,
+                  transition: 'all 0.2s ease',
+                  '&:hover': disabled || selectedLeft === null ? {} : {
+                    transform: 'translateY(-2px)',
+                    boxShadow: 2,
+                    borderColor: isMatched ? 'success.dark' : 'secondary.main'
+                  }
+                }}
+              >
+                <Typography variant="body1">
+                  <Chip
+                    label={String.fromCharCode(65 + index)}
+                    size="small"
+                    color={isMatched ? 'success' : 'default'}
+                    sx={{ mr: 1, fontWeight: 'bold' }}
+                  />
+                  {item}
+                </Typography>
+                {isMatched && (
+                  <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                    ✓ Matched with {isMatched.left + 1}
+                  </Typography>
+                )}
+              </Paper>
+            );
+          })}
+        </Grid>
+      </Grid>
+
+      {/* Instructions and Progress */}
+      <Box sx={{ mt: 3 }}>
+        {selectedLeft !== null && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Selected item {selectedLeft + 1} from Column A. Now click an item in Column B to create a match.
+          </Alert>
+        )}
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            Progress: {matches.length} of {Math.min(leftColumn.length, rightColumn.length)} matches completed
+          </Typography>
+
+          {matches.length > 0 && !disabled && (
+            <Button
+              variant="outlined"
+              size="small"
+              color="error"
+              onClick={() => {
+                setMatches([]);
+                setSelectedLeft(null);
+                onAnswerChange(question._id, { matchingAnswers: [] }, 'matching');
+              }}
+            >
+              Clear All Matches
+            </Button>
+          )}
+        </Box>
+
+        {/* Current matches summary */}
+        {matches.length > 0 && (
+          <Paper sx={{ mt: 2, p: 2, bgcolor: 'success.lighter' }}>
+            <Typography variant="subtitle2" gutterBottom color="success.main" fontWeight="bold">
+              Your Matches:
+            </Typography>
+            <Grid container spacing={1}>
+              {matches.map((match, index) => (
+                <Grid item xs={12} sm={6} key={index}>
+                  <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    p: 1,
+                    bgcolor: 'background.paper',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'success.main'
+                  }}>
+                    <Typography variant="body2">
+                      {match.left + 1} ↔ {String.fromCharCode(65 + match.right)}
+                    </Typography>
+                    {!disabled && (
+                      <IconButton
+                        size="small"
+                        onClick={() => clearMatch(index)}
+                        color="error"
+                      >
+                        ×
+                      </IconButton>
+                    )}
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+// Enhanced Ordering Question Component
+const OrderingQuestion = ({ question, answer, onAnswerChange, disabled }) => {
+  const [order, setOrder] = useState(answer?.orderingAnswer || []);
+  const items = question.itemsToOrder?.items || [];
+
+  // Initialize order if empty
+  React.useEffect(() => {
+    if (order.length === 0 && items.length > 0) {
+      const initialOrder = items.map((_, index) => index);
+      setOrder(initialOrder);
+    }
+  }, [items, order.length]);
+
+  const moveItem = (fromIndex, direction) => {
+    if (disabled) return;
+
+    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= order.length) return;
+
+    const newOrder = [...order];
+    [newOrder[fromIndex], newOrder[toIndex]] = [newOrder[toIndex], newOrder[fromIndex]];
+
+    setOrder(newOrder);
+    onAnswerChange(question._id, { orderingAnswer: newOrder }, 'ordering');
+  };
+
+  const resetOrder = () => {
+    if (disabled) return;
+    const shuffledOrder = [...Array(items.length).keys()].sort(() => Math.random() - 0.5);
+    setOrder(shuffledOrder);
+    onAnswerChange(question._id, { orderingAnswer: shuffledOrder }, 'ordering');
+  };
+
+  return (
+    <Box>
+      <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+        <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <SwapVert sx={{ mr: 1, fontSize: 20, color: 'secondary.main' }} />
+          Arrange the following items in the correct order. Use the arrow buttons to move items up or down.
+        </Box>
+      </Typography>
+
+      <Paper sx={{ p: 2, bgcolor: 'secondary.lighter', mb: 2 }}>
+        <Typography variant="h6" gutterBottom color="secondary.main" fontWeight="bold">
+          Items to Order
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Current order: {order.length > 0 ? 'Custom arrangement' : 'Original order'}
+        </Typography>
+      </Paper>
+
+      <List sx={{ bgcolor: 'background.paper', borderRadius: 1 }}>
+        {order.map((itemIndex, position) => (
+          <ListItem
+            key={`${itemIndex}-${position}`}
+            sx={{
+              mb: 1,
+              bgcolor: 'background.paper',
+              border: '2px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                borderColor: 'secondary.main',
+                boxShadow: 1
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+              {/* Position indicator */}
+              <Chip
+                label={position + 1}
+                color="secondary"
+                size="small"
+                sx={{ mr: 2, fontWeight: 'bold', minWidth: 40 }}
+              />
+
+              {/* Item content */}
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="body1">
+                  {items[itemIndex]}
+                </Typography>
+              </Box>
+
+              {/* Move buttons */}
+              {!disabled && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', ml: 2 }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => moveItem(position, 'up')}
+                    disabled={position === 0}
+                    color="primary"
+                    sx={{ mb: 0.5 }}
+                  >
+                    ↑
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => moveItem(position, 'down')}
+                    disabled={position === order.length - 1}
+                    color="primary"
+                  >
+                    ↓
+                  </IconButton>
+                </Box>
+              )}
+            </Box>
+          </ListItem>
+        ))}
+      </List>
+
+      {/* Controls */}
+      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          Items arranged: {order.length} of {items.length}
+        </Typography>
+
+        {!disabled && (
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              color="secondary"
+              onClick={resetOrder}
+              startIcon={<SwapVert />}
+            >
+              Shuffle
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              color="error"
+              onClick={() => {
+                const originalOrder = items.map((_, index) => index);
+                setOrder(originalOrder);
+                onAnswerChange(question._id, { orderingAnswer: originalOrder }, 'ordering');
+              }}
+            >
+              Reset to Original
+            </Button>
+          </Box>
+        )}
+      </Box>
+
+      {/* Instructions */}
+      <Alert severity="info" sx={{ mt: 2 }}>
+        <Typography variant="body2">
+          <strong>How to use:</strong> Click the ↑ and ↓ arrows next to each item to move it up or down in the list.
+          The numbers on the left show the current position of each item.
+        </Typography>
+      </Alert>
+    </Box>
+  );
+};
+
+// Enhanced Drag Drop Question Component
+const DragDropQuestion = ({ question, answer, onAnswerChange, disabled }) => {
+  const [placements, setPlacements] = useState(answer?.dragDropAnswer || []);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const dropZones = question.dragDropData?.dropZones || [];
+  const draggableItems = question.dragDropData?.draggableItems || [];
+
+  const handleDrop = (itemIndex, zoneIndex) => {
+    if (disabled) return;
+
+    const newPlacements = placements.filter(p => p.item !== itemIndex);
+    newPlacements.push({ item: itemIndex, zone: zoneIndex });
+
+    setPlacements(newPlacements);
+    setSelectedItem(null);
+    onAnswerChange(question._id, { dragDropAnswer: newPlacements }, 'drag-drop');
+  };
+
+  const handleItemClick = (itemIndex) => {
+    if (disabled) return;
+    const isPlaced = placements.find(p => p.item === itemIndex);
+    if (!isPlaced) {
+      setSelectedItem(selectedItem === itemIndex ? null : itemIndex);
+    }
+  };
+
+  const handleZoneClick = (zoneIndex) => {
+    if (disabled || selectedItem === null) return;
+    handleDrop(selectedItem, zoneIndex);
+  };
+
+  const removeFromZone = (placement) => {
+    if (disabled) return;
+    const newPlacements = placements.filter(p => p !== placement);
+    setPlacements(newPlacements);
+    onAnswerChange(question._id, { dragDropAnswer: newPlacements }, 'drag-drop');
+  };
+
+  const clearAllPlacements = () => {
+    if (disabled) return;
+    setPlacements([]);
+    setSelectedItem(null);
+    onAnswerChange(question._id, { dragDropAnswer: [] }, 'drag-drop');
+  };
+
+  return (
+    <Box>
+      <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+        <Box component="span" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <DragIndicator sx={{ mr: 1, fontSize: 20, color: 'error.main' }} />
+          Place items in the appropriate zones. Click an item to select it, then click a zone to place it.
+        </Box>
+      </Typography>
+
+      {/* Instructions */}
+      {selectedItem !== null && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Selected: "{draggableItems[selectedItem]}". Now click a drop zone to place this item.
+        </Alert>
+      )}
+
+      {/* Draggable Items */}
+      <Paper sx={{ p: 2, bgcolor: 'error.lighter', mb: 3 }}>
+        <Typography variant="h6" gutterBottom color="error.main" fontWeight="bold">
+          Items to Place
+        </Typography>
+        <Grid container spacing={2}>
+          {draggableItems.map((item, index) => {
+            const isPlaced = placements.find(p => p.item === index);
+            const isSelected = selectedItem === index;
+
+            return (
+              <Grid item xs={12} sm={6} md={4} key={index}>
+                <Paper
+                  onClick={() => handleItemClick(index)}
+                  sx={{
+                    p: 2,
+                    textAlign: 'center',
+                    cursor: disabled ? 'default' : isPlaced ? 'not-allowed' : 'pointer',
+                    opacity: isPlaced ? 0.4 : 1,
+                    bgcolor: isPlaced ? 'action.disabled' : isSelected ? 'primary.lighter' : 'background.paper',
+                    border: '2px solid',
+                    borderColor: isPlaced ? 'action.disabled' : isSelected ? 'primary.main' : 'divider',
+                    transition: 'all 0.2s ease',
+                    '&:hover': disabled || isPlaced ? {} : {
+                      transform: 'translateY(-2px)',
+                      boxShadow: 2,
+                      borderColor: 'primary.main'
+                    }
+                  }}
+                >
+                  <Typography variant="body1" fontWeight={isSelected ? 'bold' : 'normal'}>
+                    <Chip
+                      label={index + 1}
+                      size="small"
+                      color={isPlaced ? 'default' : isSelected ? 'primary' : 'error'}
+                      sx={{ mr: 1, fontWeight: 'bold' }}
+                    />
+                    {item}
+                  </Typography>
+                  {isPlaced && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      ✓ Placed in: {dropZones[placements.find(p => p.item === index)?.zone]}
+                    </Typography>
+                  )}
+                </Paper>
+              </Grid>
+            );
+          })}
+        </Grid>
+      </Paper>
+
+      {/* Drop Zones */}
+      <Paper sx={{ p: 2, bgcolor: 'success.lighter', mb: 2 }}>
+        <Typography variant="h6" gutterBottom color="success.main" fontWeight="bold">
+          Drop Zones
+        </Typography>
+      </Paper>
+
+      <Grid container spacing={3}>
+        {dropZones.map((zone, index) => {
+          const placedItems = placements.filter(p => p.zone === index);
+          const canDrop = selectedItem !== null && !disabled;
+
+          return (
+            <Grid item xs={12} sm={6} key={index}>
+              <Paper
+                onClick={() => handleZoneClick(index)}
+                sx={{
+                  p: 3,
+                  minHeight: 120,
+                  border: '3px dashed',
+                  borderColor: placedItems.length > 0 ? 'success.main' : canDrop ? 'primary.main' : 'divider',
+                  bgcolor: placedItems.length > 0 ? 'success.lighter' : canDrop ? 'primary.lighter' : 'background.default',
+                  cursor: disabled ? 'default' : canDrop ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.2s ease',
+                  '&:hover': disabled || !canDrop ? {} : {
+                    transform: 'translateY(-2px)',
+                    boxShadow: 2,
+                    borderColor: 'primary.dark'
+                  }
+                }}
+              >
+                <Typography variant="subtitle1" gutterBottom fontWeight="bold" color="text.primary">
+                  {zone}
+                </Typography>
+
+                {placedItems.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    {canDrop ? 'Click here to place selected item' : 'Empty zone'}
+                  </Typography>
+                ) : (
+                  <Box>
+                    {placedItems.map((placement) => (
+                      <Chip
+                        key={placement.item}
+                        label={draggableItems[placement.item]}
+                        color="success"
+                        sx={{ mr: 1, mb: 1, fontWeight: 'bold' }}
+                        onDelete={disabled ? undefined : () => removeFromZone(placement)}
+                        deleteIcon={<span>×</span>}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </Paper>
+            </Grid>
+          );
+        })}
+      </Grid>
+
+      {/* Progress and Controls */}
+      <Box sx={{ mt: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Progress: {placements.length} of {draggableItems.length} items placed
+          </Typography>
+
+          {placements.length > 0 && !disabled && (
+            <Button
+              variant="outlined"
+              size="small"
+              color="error"
+              onClick={clearAllPlacements}
+              startIcon={<span>×</span>}
+            >
+              Clear All
+            </Button>
+          )}
+        </Box>
+
+        {/* Placement Summary */}
+        {placements.length > 0 && (
+          <Paper sx={{ p: 2, bgcolor: 'info.lighter' }}>
+            <Typography variant="subtitle2" gutterBottom color="info.main" fontWeight="bold">
+              Current Placements:
+            </Typography>
+            <Grid container spacing={1}>
+              {placements.map((placement, index) => (
+                <Grid item xs={12} sm={6} key={index}>
+                  <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    p: 1,
+                    bgcolor: 'background.paper',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'info.main'
+                  }}>
+                    <Typography variant="body2">
+                      <strong>{draggableItems[placement.item]}</strong> → {dropZones[placement.zone]}
+                    </Typography>
+                    {!disabled && (
+                      <IconButton
+                        size="small"
+                        onClick={() => removeFromZone(placement)}
+                        color="error"
+                      >
+                        ×
+                      </IconButton>
+                    )}
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+        )}
+      </Box>
+    </Box>
   );
 };
 

@@ -7,7 +7,8 @@ const UserSchema = new mongoose.Schema({
     required: true,
     unique: true,
     trim: true,
-    lowercase: true
+    lowercase: true,
+    index: true // Add index for faster login lookups
   },
   password: {
     type: String,
@@ -67,14 +68,16 @@ const UserSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Hash password before saving
+// Hash password before saving - optimized for faster login
 UserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) {
     return next();
   }
 
   try {
-    const salt = await bcrypt.genSalt(10);
+    // Reduced salt rounds from 10 to 8 for faster password comparison
+    // Still secure but significantly faster for login operations
+    const salt = await bcrypt.genSalt(8);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {

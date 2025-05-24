@@ -7,7 +7,7 @@ const QuestionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['multiple-choice', 'open-ended', 'true-false', 'fill-in-blank'],
+    enum: ['multiple-choice', 'open-ended', 'true-false', 'fill-in-blank', 'matching', 'ordering', 'drag-drop'],
     required: true
   },
   options: [{
@@ -45,6 +45,55 @@ const QuestionSchema = new mongoose.Schema({
     type: String,
     enum: ['A', 'B', 'C'],
     required: true
+  },
+  // For matching questions
+  matchingPairs: {
+    leftColumn: [String],
+    rightColumn: [String],
+    correctPairs: [{
+      left: Number,
+      right: Number
+    }]
+  },
+  // For ordering questions
+  itemsToOrder: {
+    items: [String],
+    correctOrder: [Number]
+  },
+  // For drag-drop questions
+  dragDropData: {
+    dropZones: [String],
+    draggableItems: [String],
+    correctPlacements: [{
+      item: Number,
+      zone: Number
+    }]
+  },
+  // For multi-part questions
+  subQuestions: [{
+    text: String,
+    type: {
+      type: String,
+      enum: ['multiple-choice', 'open-ended', 'true-false', 'fill-in-blank']
+    },
+    options: [{
+      text: String,
+      isCorrect: Boolean,
+      letter: String
+    }],
+    correctAnswer: String,
+    points: Number
+  }],
+  // Question metadata
+  difficulty: {
+    type: String,
+    enum: ['easy', 'medium', 'hard'],
+    default: 'medium'
+  },
+  tags: [String],
+  estimatedTime: {
+    type: Number, // in minutes
+    default: 2
   },
   createdAt: {
     type: Date,

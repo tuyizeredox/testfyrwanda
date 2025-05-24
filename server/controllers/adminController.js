@@ -6,6 +6,37 @@ const Result = require('../models/Result');
 const SecurityAlert = require('../models/SecurityAlert');
 const ActivityLog = require('../models/ActivityLog');
 
+// Simple in-memory cache for leaderboard data (5 minute TTL)
+const leaderboardCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const getCacheKey = (adminId, examId = 'all') => `leaderboard_${adminId}_${examId}`;
+
+const getCachedData = (key) => {
+  const cached = leaderboardCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  return null;
+};
+
+const setCachedData = (key, data) => {
+  leaderboardCache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+};
+
+// Clean up expired cache entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of leaderboardCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      leaderboardCache.delete(key);
+    }
+  }
+}, 10 * 60 * 1000);
+
 // @desc    Register a new student
 // @route   POST /api/admin/students
 // @access  Private/Admin
@@ -257,20 +288,70 @@ const getExamResults = async (req, res) => {
   try {
     const { examId } = req.params;
 
-    // Check if exam exists
-    const exam = await Exam.findById(examId);
+    // Check if exam exists and belongs to this admin
+    const exam = await Exam.findOne({
+      _id: examId,
+      createdBy: req.user._id
+    });
 
     if (!exam) {
-      return res.status(404).json({ message: 'Exam not found' });
+      return res.status(404).json({ message: 'Exam not found or not authorized' });
     }
 
-    // Get all results for this exam
-    const results = await Result.find({ exam: examId })
-      .populate('student', 'fullName studentId email organization studentClass')
-      .populate('exam', 'title')
-      .select('-answers');
+    // Get students created by this admin
+    const students = await User.find({
+      role: 'student',
+      createdBy: req.user._id
+    }).select('_id');
 
-    res.json(results);
+    const studentIds = students.map(student => student._id);
+
+    // Get results for this exam from students created by this admin
+    const results = await Result.find({
+      exam: examId,
+      student: { $in: studentIds }
+    })
+      .populate('student', 'fullName firstName lastName studentId email organization studentClass')
+      .populate('exam', 'title')
+      .sort({ totalScore: -1, endTime: -1 });
+
+    // Format results with additional calculated fields
+    const formattedResults = results.map(result => {
+      const percentage = result.maxPossibleScore > 0
+        ? Math.round((result.totalScore / result.maxPossibleScore) * 100)
+        : 0;
+
+      // Calculate time taken
+      const timeTaken = result.endTime && result.startTime
+        ? Math.round((new Date(result.endTime) - new Date(result.startTime)) / (1000 * 60))
+        : 0;
+
+      return {
+        _id: result._id,
+        student: {
+          _id: result.student._id,
+          fullName: result.student.fullName ||
+                   `${result.student.firstName || ''} ${result.student.lastName || ''}`.trim(),
+          firstName: result.student.firstName,
+          lastName: result.student.lastName,
+          studentId: result.student.studentId,
+          email: result.student.email,
+          organization: result.student.organization,
+          studentClass: result.student.studentClass
+        },
+        exam: result.exam,
+        totalScore: result.totalScore || 0,
+        maxPossibleScore: result.maxPossibleScore || 0,
+        percentage,
+        timeTaken,
+        startTime: result.startTime,
+        endTime: result.endTime,
+        isCompleted: result.isCompleted,
+        aiGradingStatus: result.aiGradingStatus
+      };
+    });
+
+    res.json(formattedResults);
   } catch (error) {
     console.error('Get exam results error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -282,18 +363,36 @@ const getExamResults = async (req, res) => {
 // @access  Private/Admin
 const getOverallLeaderboard = async (req, res) => {
   try {
-    // Get students created by this admin
+    console.log(`Admin ${req.user._id} requesting overall leaderboard`);
+    const startTime = Date.now();
+
+    // Check cache first
+    const cacheKey = getCacheKey(req.user._id, 'all');
+    const cachedData = getCachedData(cacheKey);
+    if (cachedData) {
+      console.log(`Returning cached overall leaderboard for admin ${req.user._id}`);
+      return res.json(cachedData);
+    }
+
+    // Get students created by this admin with lean query for better performance
     const students = await User.find({
       role: 'student',
       createdBy: req.user._id
-    }).select('_id');
+    }).select('_id').lean();
 
     const studentIds = students.map(student => student._id);
+    console.log(`Found ${studentIds.length} students for admin`);
 
-    // Get all completed results for students created by this admin
+    // Get exams created by this admin with lean query
+    const exams = await Exam.find({ createdBy: req.user._id }).select('_id').lean();
+    const examIds = exams.map(exam => exam._id);
+    console.log(`Found ${examIds.length} exams for admin`);
+
+    // Get all completed results for students created by this admin taking exams created by this admin
     const results = await Result.find({
       isCompleted: true,
-      student: { $in: studentIds }
+      student: { $in: studentIds },
+      exam: { $in: examIds }
     })
       .populate({
         path: 'student',
@@ -384,10 +483,21 @@ const getOverallLeaderboard = async (req, res) => {
       return a.timeTaken - b.timeTaken;
     });
 
-    res.json({
+    // Limit to top 50 for better performance
+    const limitedData = leaderboardData.slice(0, 50);
+
+    const endTime = Date.now();
+    console.log(`Overall leaderboard generated in ${endTime - startTime}ms with ${limitedData.length} students`);
+
+    const responseData = {
       examTitle: "All Exams",
-      leaderboard: leaderboardData
-    });
+      leaderboard: limitedData
+    };
+
+    // Cache the response
+    setCachedData(cacheKey, responseData);
+
+    res.json(responseData);
   } catch (error) {
     console.error('Get overall leaderboard error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -400,18 +510,40 @@ const getOverallLeaderboard = async (req, res) => {
 const getExamLeaderboard = async (req, res) => {
   try {
     const { examId } = req.params;
+    console.log(`Admin ${req.user._id} requesting leaderboard for exam ${examId}`);
+    const startTime = Date.now();
 
-    // Check if exam exists
-    const exam = await Exam.findById(examId);
-
-    if (!exam) {
-      return res.status(404).json({ message: 'Exam not found' });
+    // Check cache first
+    const cacheKey = getCacheKey(req.user._id, examId);
+    const cachedData = getCachedData(cacheKey);
+    if (cachedData) {
+      console.log(`Returning cached exam leaderboard for admin ${req.user._id}, exam ${examId}`);
+      return res.json(cachedData);
     }
 
-    // Get all completed results for this exam
+    // Check if exam exists and belongs to this admin
+    const exam = await Exam.findOne({
+      _id: examId,
+      createdBy: req.user._id
+    }).lean();
+
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found or access denied' });
+    }
+
+    // Get students created by this admin
+    const students = await User.find({
+      role: 'student',
+      createdBy: req.user._id
+    }).select('_id').lean();
+
+    const studentIds = students.map(student => student._id);
+
+    // Get completed results for this exam from admin's students only
     const results = await Result.find({
       exam: examId,
-      isCompleted: true
+      isCompleted: true,
+      student: { $in: studentIds }
     })
       .populate({
         path: 'student',
@@ -419,7 +551,8 @@ const getExamLeaderboard = async (req, res) => {
         options: { virtuals: true }
       })
       .populate('exam', 'title maxPossibleScore')
-      .select('totalScore maxPossibleScore startTime endTime');
+      .select('totalScore maxPossibleScore startTime endTime')
+      .limit(100); // Limit for performance
 
     // Format the results for the leaderboard
     const leaderboardData = results.map(result => {
@@ -472,10 +605,18 @@ const getExamLeaderboard = async (req, res) => {
       return a.timeTaken - b.timeTaken;
     });
 
-    res.json({
+    const endTime = Date.now();
+    console.log(`Exam leaderboard for ${examId} generated in ${endTime - startTime}ms with ${leaderboardData.length} students`);
+
+    const responseData = {
       examTitle: exam.title,
       leaderboard: leaderboardData
-    });
+    };
+
+    // Cache the response
+    setCachedData(cacheKey, responseData);
+
+    res.json(responseData);
   } catch (error) {
     console.error('Get exam leaderboard error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -490,8 +631,8 @@ const getDetailedResult = async (req, res) => {
     const { resultId } = req.params;
 
     const result = await Result.findById(resultId)
-      .populate('student', 'fullName studentId email')
-      .populate('exam', 'title')
+      .populate('student', 'fullName firstName lastName studentId email organization studentClass')
+      .populate('exam', 'title description totalPoints timeLimit')
       .populate({
         path: 'answers.question',
         select: 'text type options correctAnswer points section'
@@ -501,7 +642,85 @@ const getDetailedResult = async (req, res) => {
       return res.status(404).json({ message: 'Result not found' });
     }
 
-    res.json(result);
+    // Check if this result belongs to an exam created by this admin
+    const exam = await Exam.findById(result.exam._id);
+
+    if (!exam || exam.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to view this result' });
+    }
+
+    // Calculate additional statistics
+    const percentage = result.maxPossibleScore > 0
+      ? Math.round((result.totalScore / result.maxPossibleScore) * 100)
+      : 0;
+
+    const timeTaken = result.endTime && result.startTime
+      ? Math.round((new Date(result.endTime) - new Date(result.startTime)) / (1000 * 60))
+      : 0;
+
+    // Analyze answers by section and type
+    const answerAnalysis = {
+      bySection: {},
+      byType: {},
+      correctAnswers: 0,
+      totalAnswers: result.answers.length
+    };
+
+    result.answers.forEach(answer => {
+      const section = answer.question.section || 'Unknown';
+      const type = answer.question.type || 'Unknown';
+
+      // Initialize section if not exists
+      if (!answerAnalysis.bySection[section]) {
+        answerAnalysis.bySection[section] = {
+          total: 0,
+          correct: 0,
+          score: 0,
+          maxScore: 0
+        };
+      }
+
+      // Initialize type if not exists
+      if (!answerAnalysis.byType[type]) {
+        answerAnalysis.byType[type] = {
+          total: 0,
+          correct: 0,
+          score: 0,
+          maxScore: 0
+        };
+      }
+
+      // Update counts
+      answerAnalysis.bySection[section].total++;
+      answerAnalysis.byType[type].total++;
+      answerAnalysis.bySection[section].score += answer.score || 0;
+      answerAnalysis.byType[type].score += answer.score || 0;
+      answerAnalysis.bySection[section].maxScore += answer.question.points || 0;
+      answerAnalysis.byType[type].maxScore += answer.question.points || 0;
+
+      if (answer.isCorrect) {
+        answerAnalysis.bySection[section].correct++;
+        answerAnalysis.byType[type].correct++;
+        answerAnalysis.correctAnswers++;
+      }
+    });
+
+    // Format the response with enhanced data
+    const enhancedResult = {
+      ...result.toObject(),
+      percentage,
+      timeTaken,
+      grade: percentage >= 90 ? 'A' : percentage >= 80 ? 'B' : percentage >= 70 ? 'C' : percentage >= 60 ? 'D' : 'F',
+      analysis: answerAnalysis,
+      performance: {
+        excellent: percentage >= 90,
+        good: percentage >= 70 && percentage < 90,
+        average: percentage >= 50 && percentage < 70,
+        poor: percentage < 50
+      }
+    };
+
+    res.json(enhancedResult);
   } catch (error) {
     console.error('Get detailed result error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -577,6 +796,57 @@ const getDashboardStats = async (req, res) => {
       createdBy: req.user._id
     });
 
+    // Get students created by this admin
+    const students = await User.find({
+      role: 'student',
+      createdBy: req.user._id
+    }).select('_id');
+
+    const studentIds = students.map(student => student._id);
+
+    // Get exams created by this admin
+    const exams = await Exam.find({ createdBy: req.user._id }).select('_id');
+    const examIds = exams.map(exam => exam._id);
+
+    // Get results for students created by this admin taking exams created by this admin
+    const results = await Result.find({
+      isCompleted: true,
+      student: { $in: studentIds },
+      exam: { $in: examIds }
+    });
+
+    // Calculate performance stats for students created by this admin
+    const totalResults = results.length;
+    const averageScore = totalResults > 0
+      ? Math.round(results.reduce((sum, result) => {
+          const percentage = result.maxPossibleScore > 0
+            ? (result.totalScore / result.maxPossibleScore) * 100
+            : 0;
+          return sum + percentage;
+        }, 0) / totalResults)
+      : 0;
+
+    // Count performance levels
+    const excellentCount = results.filter(r => {
+      const percentage = r.maxPossibleScore > 0 ? (r.totalScore / r.maxPossibleScore) * 100 : 0;
+      return percentage >= 90;
+    }).length;
+
+    const goodCount = results.filter(r => {
+      const percentage = r.maxPossibleScore > 0 ? (r.totalScore / r.maxPossibleScore) * 100 : 0;
+      return percentage >= 70 && percentage < 90;
+    }).length;
+
+    const averageCount = results.filter(r => {
+      const percentage = r.maxPossibleScore > 0 ? (r.totalScore / r.maxPossibleScore) * 100 : 0;
+      return percentage >= 50 && percentage < 70;
+    }).length;
+
+    const poorCount = results.filter(r => {
+      const percentage = r.maxPossibleScore > 0 ? (r.totalScore / r.maxPossibleScore) * 100 : 0;
+      return percentage < 50;
+    }).length;
+
     // Get count of unresolved security alerts
     const securityAlerts = await SecurityAlert.countDocuments({ status: 'unresolved' });
 
@@ -592,8 +862,17 @@ const getDashboardStats = async (req, res) => {
     // Return dashboard stats
     res.json({
       totalStudents: studentCount,
+      totalExams: examCount,
       activeExams,
       upcomingExams,
+      totalResults,
+      averageScore,
+      performanceBreakdown: {
+        excellent: excellentCount,
+        good: goodCount,
+        average: averageCount,
+        poor: poorCount
+      },
       securityAlerts,
       recentActivities
     });
@@ -1547,46 +1826,683 @@ const updateScheduledExam = async (req, res) => {
 // @access  Private/Admin
 const getAllResults = async (req, res) => {
   try {
+    // Get students created by this admin
+    const students = await User.find({
+      role: 'student',
+      createdBy: req.user._id
+    }).select('_id');
+
+    const studentIds = students.map(student => student._id);
+
     // Get all exams created by this admin
     const exams = await Exam.find({ createdBy: req.user._id }).select('_id');
     const examIds = exams.map(exam => exam._id);
 
-    // Get all results for exams created by this admin
+    // Get all results for students created by this admin taking exams created by this admin
     const results = await Result.find({
       isCompleted: true,
+      student: { $in: studentIds },
       exam: { $in: examIds }
     })
-      .populate('student', 'firstName lastName fullName email')
-      .populate('exam', 'title')
+      .populate('student', 'firstName lastName fullName email organization studentClass studentId')
+      .populate('exam', 'title totalPoints')
       .sort({ endTime: -1 });
 
-    // Format the results
-    const formattedResults = results.map(result => ({
-      _id: result._id,
-      student: {
-        _id: result.student?._id || null,
-        fullName: result.student?.fullName ||
-                 (result.student ? `${result.student.firstName} ${result.student.lastName}` : 'Unknown'),
-        email: result.student?.email || 'Unknown'
-      },
-      exam: {
-        _id: result.exam?._id || null,
-        title: result.exam?.title || 'Unknown'
-      },
-      totalScore: result.totalScore,
-      maxPossibleScore: result.maxPossibleScore,
-      percentage: result.maxPossibleScore > 0
+    // Format the results with enhanced data
+    const formattedResults = results.map(result => {
+      const percentage = result.maxPossibleScore > 0
         ? Math.round((result.totalScore / result.maxPossibleScore) * 100)
-        : 0,
-      startTime: result.startTime,
-      endTime: result.endTime,
-      isCompleted: result.isCompleted
-    }));
+        : 0;
 
-    res.json(formattedResults);
+      // Calculate time taken in minutes
+      const timeTaken = result.endTime && result.startTime
+        ? Math.round((new Date(result.endTime) - new Date(result.startTime)) / (1000 * 60))
+        : 0;
+
+      // Determine grade based on percentage
+      let grade = 'F';
+      if (percentage >= 90) grade = 'A';
+      else if (percentage >= 80) grade = 'B';
+      else if (percentage >= 70) grade = 'C';
+      else if (percentage >= 60) grade = 'D';
+
+      return {
+        _id: result._id,
+        student: {
+          _id: result.student?._id || null,
+          fullName: result.student?.fullName ||
+                   (result.student ? `${result.student.firstName || ''} ${result.student.lastName || ''}`.trim() : 'Unknown'),
+          firstName: result.student?.firstName || '',
+          lastName: result.student?.lastName || '',
+          email: result.student?.email || 'Unknown',
+          studentId: result.student?.studentId || '',
+          organization: result.student?.organization || '',
+          studentClass: result.student?.studentClass || ''
+        },
+        exam: {
+          _id: result.exam?._id || null,
+          title: result.exam?.title || 'Unknown',
+          totalPoints: result.exam?.totalPoints || result.maxPossibleScore
+        },
+        totalScore: result.totalScore || 0,
+        maxPossibleScore: result.maxPossibleScore || 0,
+        percentage,
+        grade,
+        timeTaken,
+        startTime: result.startTime,
+        endTime: result.endTime,
+        isCompleted: result.isCompleted,
+        aiGradingStatus: result.aiGradingStatus || 'completed'
+      };
+    });
+
+    // Add summary statistics
+    const summary = {
+      totalResults: formattedResults.length,
+      averageScore: formattedResults.length > 0
+        ? Math.round(formattedResults.reduce((sum, result) => sum + result.percentage, 0) / formattedResults.length)
+        : 0,
+      excellentCount: formattedResults.filter(r => r.percentage >= 90).length,
+      goodCount: formattedResults.filter(r => r.percentage >= 70 && r.percentage < 90).length,
+      averageCount: formattedResults.filter(r => r.percentage >= 50 && r.percentage < 70).length,
+      poorCount: formattedResults.filter(r => r.percentage < 50).length
+    };
+
+    res.json({
+      results: formattedResults,
+      summary
+    });
   } catch (error) {
     console.error('Get all results error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get student performance analytics for admin dashboard
+// @route   GET /api/admin/analytics/student-performance
+// @access  Private/Admin
+const getStudentPerformanceAnalytics = async (req, res) => {
+  try {
+    // Get students created by this admin
+    const students = await User.find({
+      role: 'student',
+      createdBy: req.user._id
+    }).select('_id firstName lastName fullName email organization studentClass');
+
+    const studentIds = students.map(student => student._id);
+
+    // Get exams created by this admin
+    const exams = await Exam.find({ createdBy: req.user._id }).select('_id title');
+    const examIds = exams.map(exam => exam._id);
+
+    // Get all results for students created by this admin taking exams created by this admin
+    const results = await Result.find({
+      isCompleted: true,
+      student: { $in: studentIds },
+      exam: { $in: examIds }
+    })
+      .populate('student', 'firstName lastName fullName email organization studentClass')
+      .populate('exam', 'title')
+      .sort({ endTime: -1 });
+
+    // Calculate student performance metrics
+    const studentPerformance = {};
+
+    results.forEach(result => {
+      const studentId = result.student._id.toString();
+
+      if (!studentPerformance[studentId]) {
+        studentPerformance[studentId] = {
+          student: result.student,
+          exams: [],
+          totalScore: 0,
+          totalMaxScore: 0,
+          examCount: 0,
+          averageScore: 0,
+          bestScore: 0,
+          worstScore: 100,
+          improvementTrend: 0
+        };
+      }
+
+      const percentage = result.maxPossibleScore > 0
+        ? Math.round((result.totalScore / result.maxPossibleScore) * 100)
+        : 0;
+
+      const timeTaken = result.endTime && result.startTime
+        ? Math.round((new Date(result.endTime) - new Date(result.startTime)) / (1000 * 60))
+        : 0;
+
+      studentPerformance[studentId].exams.push({
+        examId: result.exam._id,
+        examTitle: result.exam.title,
+        score: result.totalScore,
+        maxScore: result.maxPossibleScore,
+        percentage,
+        timeTaken,
+        completedAt: result.endTime
+      });
+
+      studentPerformance[studentId].totalScore += result.totalScore;
+      studentPerformance[studentId].totalMaxScore += result.maxPossibleScore;
+      studentPerformance[studentId].examCount++;
+      studentPerformance[studentId].bestScore = Math.max(studentPerformance[studentId].bestScore, percentage);
+      studentPerformance[studentId].worstScore = Math.min(studentPerformance[studentId].worstScore, percentage);
+    });
+
+    // Calculate final metrics and trends
+    const performanceArray = Object.values(studentPerformance).map(student => {
+      student.averageScore = student.totalMaxScore > 0
+        ? Math.round((student.totalScore / student.totalMaxScore) * 100)
+        : 0;
+
+      // Calculate improvement trend (compare first 3 and last 3 exams)
+      if (student.exams.length >= 3) {
+        const sortedExams = student.exams.sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt));
+        const firstThree = sortedExams.slice(0, 3);
+        const lastThree = sortedExams.slice(-3);
+
+        const firstAvg = firstThree.reduce((sum, exam) => sum + exam.percentage, 0) / firstThree.length;
+        const lastAvg = lastThree.reduce((sum, exam) => sum + exam.percentage, 0) / lastThree.length;
+
+        student.improvementTrend = Math.round(lastAvg - firstAvg);
+      }
+
+      return {
+        id: student.student._id,
+        name: student.student.fullName ||
+              `${student.student.firstName || ''} ${student.student.lastName || ''}`.trim(),
+        email: student.student.email,
+        organization: student.student.organization,
+        studentClass: student.student.studentClass,
+        exams: student.examCount,
+        avgScore: student.averageScore,
+        bestScore: student.bestScore,
+        worstScore: student.worstScore === 100 ? 0 : student.worstScore,
+        trend: student.improvementTrend,
+        lastExam: student.exams.length > 0
+          ? student.exams.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0].completedAt
+          : null,
+        performance: student.averageScore >= 90 ? 'excellent' :
+                    student.averageScore >= 70 ? 'good' :
+                    student.averageScore >= 50 ? 'average' : 'poor'
+      };
+    });
+
+    // Sort by average score descending
+    performanceArray.sort((a, b) => b.avgScore - a.avgScore);
+
+    // Calculate overall statistics
+    const overallStats = {
+      totalStudents: performanceArray.length,
+      studentsWithExams: performanceArray.filter(s => s.exams > 0).length,
+      averageClassScore: performanceArray.length > 0
+        ? Math.round(performanceArray.reduce((sum, s) => sum + s.avgScore, 0) / performanceArray.length)
+        : 0,
+      excellentStudents: performanceArray.filter(s => s.performance === 'excellent').length,
+      goodStudents: performanceArray.filter(s => s.performance === 'good').length,
+      averageStudents: performanceArray.filter(s => s.performance === 'average').length,
+      poorStudents: performanceArray.filter(s => s.performance === 'poor').length,
+      improvingStudents: performanceArray.filter(s => s.trend > 0).length,
+      decliningStudents: performanceArray.filter(s => s.trend < 0).length
+    };
+
+    res.json({
+      students: performanceArray,
+      stats: overallStats
+    });
+  } catch (error) {
+    console.error('Get student performance analytics error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Debug admin data to troubleshoot issues
+// @route   GET /api/admin/debug
+// @access  Private/Admin
+const debugAdminData = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+
+    // Get admin info
+    const admin = await User.findById(adminId).select('firstName lastName email role');
+
+    // Get exams created by this admin
+    const exams = await Exam.find({ createdBy: adminId })
+      .select('title createdAt isLocked')
+      .sort({ createdAt: -1 });
+
+    // Get students created by this admin
+    const studentsCreatedByAdmin = await User.find({
+      role: 'student',
+      createdBy: adminId
+    }).select('firstName lastName email createdAt');
+
+    // Get all students who have taken exams created by this admin
+    const examIds = exams.map(exam => exam._id);
+    const allResults = await Result.find({ exam: { $in: examIds } })
+      .populate('student', 'firstName lastName email createdBy')
+      .populate('exam', 'title')
+      .select('student exam isCompleted totalScore maxPossibleScore endTime');
+
+    // Get unique students who took exams
+    const studentsWhoTookExams = [];
+    const studentMap = new Map();
+
+    allResults.forEach(result => {
+      if (result.student && !studentMap.has(result.student._id.toString())) {
+        studentMap.set(result.student._id.toString(), {
+          _id: result.student._id,
+          name: `${result.student.firstName || ''} ${result.student.lastName || ''}`.trim(),
+          email: result.student.email,
+          createdBy: result.student.createdBy,
+          createdByThisAdmin: result.student.createdBy?.toString() === adminId.toString()
+        });
+        studentsWhoTookExams.push(studentMap.get(result.student._id.toString()));
+      }
+    });
+
+    // Count results by status
+    const completedResults = allResults.filter(r => r.isCompleted);
+    const pendingResults = allResults.filter(r => !r.isCompleted);
+
+    const debugInfo = {
+      admin: {
+        id: admin._id,
+        name: `${admin.firstName} ${admin.lastName}`,
+        email: admin.email,
+        role: admin.role
+      },
+      exams: {
+        total: exams.length,
+        locked: exams.filter(e => e.isLocked).length,
+        unlocked: exams.filter(e => !e.isLocked).length,
+        list: exams.map(e => ({
+          id: e._id,
+          title: e.title,
+          isLocked: e.isLocked,
+          createdAt: e.createdAt
+        }))
+      },
+      students: {
+        createdByThisAdmin: studentsCreatedByAdmin.length,
+        whoTookExams: studentsWhoTookExams.length,
+        createdByThisAdminList: studentsCreatedByAdmin.map(s => ({
+          id: s._id,
+          name: `${s.firstName} ${s.lastName}`,
+          email: s.email
+        })),
+        whoTookExamsList: studentsWhoTookExams
+      },
+      results: {
+        total: allResults.length,
+        completed: completedResults.length,
+        pending: pendingResults.length,
+        completedList: completedResults.map(r => ({
+          id: r._id,
+          student: r.student ? `${r.student.firstName} ${r.student.lastName}` : 'Unknown',
+          exam: r.exam?.title || 'Unknown',
+          score: `${r.totalScore}/${r.maxPossibleScore}`,
+          percentage: r.maxPossibleScore > 0 ? Math.round((r.totalScore / r.maxPossibleScore) * 100) : 0,
+          completedAt: r.endTime
+        }))
+      }
+    };
+
+    res.json(debugInfo);
+  } catch (error) {
+    console.error('Debug admin data error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Get student results for admin to review and regrade
+// @route   GET /api/admin/student-results
+// @access  Private/Admin
+const getStudentResultsForRegrade = async (req, res) => {
+  try {
+    console.log('=== ADMIN STUDENT RESULTS ENDPOINT HIT ===');
+    console.log('Query params:', req.query);
+    console.log('Admin user:', req.user._id);
+
+    const { examId, studentId, status, sortBy = 'endTime', sortOrder = 'desc' } = req.query;
+
+    // Build query for results
+    let query = { isCompleted: true };
+
+    // Get students created by this admin
+    const students = await User.find({
+      role: 'student',
+      createdBy: req.user._id
+    }).select('_id');
+
+    const studentIds = students.map(student => student._id);
+
+    // Get exams created by this admin
+    const exams = await Exam.find({ createdBy: req.user._id }).select('_id');
+    const examIds = exams.map(exam => exam._id);
+
+    console.log(`Admin ${req.user._id} has ${studentIds.length} students and ${examIds.length} exams`);
+
+    // Filter by admin's students and exams - but be more flexible
+    if (studentIds.length > 0 && examIds.length > 0) {
+      query.$or = [
+        { student: { $in: studentIds }, exam: { $in: examIds } }, // Both student and exam by admin
+        { student: { $in: studentIds } }, // Student by admin (any exam)
+        { exam: { $in: examIds } } // Exam by admin (any student)
+      ];
+    } else if (studentIds.length > 0) {
+      query.student = { $in: studentIds };
+    } else if (examIds.length > 0) {
+      query.exam = { $in: examIds };
+    } else {
+      // Admin has no students or exams, return empty results
+      return res.json({
+        results: [],
+        summary: {
+          totalResults: 0,
+          needsReview: 0,
+          potentialImprovements: 0,
+          averageScore: 0,
+          gradeDistribution: { excellent: 0, good: 0, average: 0, poor: 0 }
+        },
+        filters: { examId: examId || null, studentId: studentId || null, status: status || null, sortBy, sortOrder }
+      });
+    }
+
+    // Apply additional filters
+    if (examId) {
+      query.exam = examId;
+    }
+
+    if (studentId) {
+      query.student = studentId;
+    }
+
+    if (status) {
+      if (status === 'needs-grading') {
+        query.$or = [
+          { aiGradingStatus: { $ne: 'completed' } },
+          { aiGradingStatus: { $exists: false } },
+          { 'answers.score': 0, 'answers.textAnswer': { $exists: true, $ne: '' } }
+        ];
+      } else if (status === 'low-scores') {
+        // We'll filter this after getting results
+      }
+    }
+
+    // Get results with populated data
+    const results = await Result.find(query)
+      .populate({
+        path: 'student',
+        select: 'firstName lastName fullName email organization studentClass studentId'
+      })
+      .populate({
+        path: 'exam',
+        select: 'title description totalPoints timeLimit'
+      })
+      .populate({
+        path: 'answers.question',
+        select: 'text type points correctAnswer section'
+      })
+      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 });
+
+    // Format results with enhanced data for regrading
+    const formattedResults = results.map(result => {
+      const percentage = result.maxPossibleScore > 0
+        ? Math.round((result.totalScore / result.maxPossibleScore) * 100)
+        : 0;
+
+      const timeTaken = result.endTime && result.startTime
+        ? Math.round((new Date(result.endTime) - new Date(result.startTime)) / (1000 * 60))
+        : 0;
+
+      // Analyze answers for regrading opportunities
+      const answerAnalysis = {
+        totalAnswers: result.answers.length,
+        answersWithZeroScore: result.answers.filter(a => (a.score || 0) === 0 && (a.textAnswer || a.selectedOption)).length,
+        answersNeedingReview: result.answers.filter(a =>
+          !a.feedback ||
+          a.feedback.includes('keyword matching') ||
+          a.feedback.includes('Unable to grade')
+        ).length,
+        potentialImprovements: result.answers.filter(a => {
+          const question = a.question;
+          if (!question) return false;
+
+          // Check for semantic matches that might have been missed
+          if (question.type === 'multiple-choice' && a.selectedOption && question.correctAnswer) {
+            const selected = (a.selectedOption || '').toLowerCase().trim();
+            const correct = (question.correctAnswer || '').toLowerCase().trim();
+            return (a.score || 0) === 0 && (
+              selected === correct ||
+              correct.includes(selected) ||
+              selected.includes(correct)
+            );
+          }
+          return false;
+        }).length
+      };
+
+      return {
+        _id: result._id,
+        student: {
+          _id: result.student._id,
+          name: result.student.fullName ||
+                `${result.student.firstName || ''} ${result.student.lastName || ''}`.trim(),
+          email: result.student.email,
+          organization: result.student.organization,
+          studentClass: result.student.studentClass,
+          studentId: result.student.studentId
+        },
+        exam: {
+          _id: result.exam._id,
+          title: result.exam.title,
+          description: result.exam.description,
+          totalPoints: result.exam.totalPoints,
+          timeLimit: result.exam.timeLimit
+        },
+        scores: {
+          totalScore: result.totalScore,
+          maxPossibleScore: result.maxPossibleScore,
+          percentage
+        },
+        timing: {
+          startTime: result.startTime,
+          endTime: result.endTime,
+          timeTaken
+        },
+        grading: {
+          aiGradingStatus: result.aiGradingStatus || 'pending',
+          needsReview: answerAnalysis.answersNeedingReview > 0 || answerAnalysis.potentialImprovements > 0,
+          potentialImprovement: answerAnalysis.potentialImprovements > 0
+        },
+        analysis: answerAnalysis,
+        grade: percentage >= 90 ? 'A' : percentage >= 80 ? 'B' : percentage >= 70 ? 'C' : percentage >= 60 ? 'D' : 'F',
+        performance: percentage >= 90 ? 'excellent' : percentage >= 70 ? 'good' : percentage >= 50 ? 'average' : 'poor'
+      };
+    });
+
+    // Apply low-scores filter if requested
+    let filteredResults = formattedResults;
+    if (status === 'low-scores') {
+      filteredResults = formattedResults.filter(r => r.scores.percentage < 70);
+    }
+
+    // Calculate summary statistics
+    const summary = {
+      totalResults: filteredResults.length,
+      needsReview: filteredResults.filter(r => r.grading.needsReview).length,
+      potentialImprovements: filteredResults.filter(r => r.grading.potentialImprovement).length,
+      averageScore: filteredResults.length > 0
+        ? Math.round(filteredResults.reduce((sum, r) => sum + r.scores.percentage, 0) / filteredResults.length)
+        : 0,
+      gradeDistribution: {
+        excellent: filteredResults.filter(r => r.performance === 'excellent').length,
+        good: filteredResults.filter(r => r.performance === 'good').length,
+        average: filteredResults.filter(r => r.performance === 'average').length,
+        poor: filteredResults.filter(r => r.performance === 'poor').length
+      }
+    };
+
+    res.json({
+      results: filteredResults,
+      summary,
+      filters: {
+        examId: examId || null,
+        studentId: studentId || null,
+        status: status || null,
+        sortBy,
+        sortOrder
+      }
+    });
+
+  } catch (error) {
+    console.error('Get student results for regrade error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Regrade a specific student result
+// @route   POST /api/admin/regrade-result/:resultId
+// @access  Private/Admin
+const regradeStudentResult = async (req, res) => {
+  try {
+    const { resultId } = req.params;
+    const { method = 'ai', forceRegrade = false } = req.body;
+
+    // Find the result and verify admin ownership
+    const result = await Result.findById(resultId)
+      .populate({
+        path: 'student',
+        select: 'firstName lastName email createdBy'
+      })
+      .populate({
+        path: 'exam',
+        select: 'title createdBy'
+      });
+
+    if (!result) {
+      return res.status(404).json({ message: 'Result not found' });
+    }
+
+    // Verify admin has access to this result
+    const hasAccess = result.exam.createdBy.toString() === req.user._id.toString() ||
+                     result.student.createdBy.toString() === req.user._id.toString();
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Not authorized to regrade this result' });
+    }
+
+    console.log(`Admin ${req.user._id} regrading result ${resultId} using method: ${method}`);
+
+    let regradingResult;
+
+    // Store the old score before regrading
+    const oldScore = result.totalScore || 0;
+    const oldPercentage = result.maxPossibleScore > 0 ? Math.round((oldScore / result.maxPossibleScore) * 100) : 0;
+
+    if (method === 'ai') {
+      // Use AI regrading
+      const { regradeExamResult } = require('../utils/gradeExam');
+      regradingResult = await regradeExamResult(resultId, forceRegrade);
+
+      // Ensure we have the old score information
+      if (!regradingResult.oldScore) {
+        regradingResult.oldScore = oldScore;
+        regradingResult.oldPercentage = oldPercentage;
+      }
+    } else if (method === 'comprehensive') {
+      // Use comprehensive AI grading
+      const { gradeQuestionByType } = require('../utils/enhancedGrading');
+
+      // Reload result with questions
+      const fullResult = await Result.findById(resultId)
+        .populate({
+          path: 'answers.question',
+          select: 'text type points correctAnswer options'
+        });
+
+      let totalScore = 0;
+      let improvedAnswers = 0;
+
+      for (let i = 0; i < fullResult.answers.length; i++) {
+        const answer = fullResult.answers[i];
+        const question = answer.question;
+
+        if (!question) continue;
+
+        try {
+          const grading = await gradeQuestionByType(question, answer, question.correctAnswer);
+
+          const oldScore = answer.score || 0;
+          const newScore = grading.score || 0;
+
+          fullResult.answers[i].score = newScore;
+          fullResult.answers[i].feedback = grading.feedback || 'Regraded by admin';
+          fullResult.answers[i].isCorrect = newScore >= question.points;
+          fullResult.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+          fullResult.answers[i].gradingMethod = grading.details?.gradingMethod || 'admin_regrade'; // Track grading method
+
+          totalScore += newScore;
+
+          if (newScore !== oldScore) {
+            improvedAnswers++;
+            console.log(`Answer ${i}: Score changed from ${oldScore} to ${newScore}`);
+          }
+
+        } catch (gradingError) {
+          console.error(`Error regrading answer ${i}:`, gradingError.message);
+          totalScore += answer.score || 0;
+        }
+      }
+
+      fullResult.totalScore = totalScore;
+      fullResult.aiGradingStatus = 'completed';
+
+      // Save the result to ensure database persistence like regrading system
+      await fullResult.save();
+      console.log(`Admin regrade completed and saved to database for result ${resultId}`);
+
+      regradingResult = {
+        resultId,
+        oldScore,
+        oldPercentage,
+        totalScore,
+        maxPossibleScore: fullResult.maxPossibleScore,
+        percentage: (totalScore / fullResult.maxPossibleScore) * 100,
+        improvedAnswers
+      };
+    }
+
+    // Get updated result for response
+    const updatedResult = await Result.findById(resultId)
+      .populate('student', 'firstName lastName email')
+      .populate('exam', 'title');
+
+    const newPercentage = updatedResult.maxPossibleScore > 0
+      ? Math.round((updatedResult.totalScore / updatedResult.maxPossibleScore) * 100)
+      : 0;
+
+    res.json({
+      message: 'Result regraded successfully',
+      result: {
+        _id: updatedResult._id,
+        student: `${updatedResult.student.firstName} ${updatedResult.student.lastName}`,
+        exam: updatedResult.exam.title,
+        oldScore: regradingResult.oldScore || 'N/A',
+        newScore: updatedResult.totalScore,
+        maxScore: updatedResult.maxPossibleScore,
+        oldPercentage: regradingResult.oldPercentage || 'N/A',
+        newPercentage,
+        improvement: (updatedResult.totalScore - (regradingResult.oldScore || updatedResult.totalScore)),
+        method
+      }
+    });
+
+  } catch (error) {
+    console.error('Regrade student result error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -1617,5 +2533,9 @@ module.exports = {
   createExam,
   scheduleExam,
   updateScheduledExam,
-  getAllResults
+  getAllResults,
+  getStudentPerformanceAnalytics,
+  debugAdminData,
+  getStudentResultsForRegrade,
+  regradeStudentResult
 };

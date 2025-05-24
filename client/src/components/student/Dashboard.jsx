@@ -50,8 +50,6 @@ import StudentLayout from './StudentLayout';
 
 // Import gamification components
 import StatsCard from '../gamification/StatsCard';
-import ProgressCard from '../gamification/ProgressCard';
-import AchievementCard from '../gamification/AchievementCard';
 import Leaderboard from '../gamification/Leaderboard';
 
 const Dashboard = () => {
@@ -78,10 +76,10 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Fetch available exams - removing the duplicate /api prefix
+        // Fetch available exams
         const examsRes = await api.get('/student/exams');
 
-        // Fetch results - removing the duplicate /api prefix
+        // Fetch results
         const resultsRes = await api.get('/student/results');
 
         // Calculate stats
@@ -90,7 +88,6 @@ const Dashboard = () => {
 
         const completed = exams.filter(exam => exam.status === 'completed').length;
         const available = exams.filter(exam => exam.status === 'not-started').length;
-        const inProgress = exams.filter(exam => exam.status === 'in-progress').length;
 
         // Calculate average score
         let totalScore = 0;
@@ -262,61 +259,90 @@ const Dashboard = () => {
 
   return (
     <StudentLayout>
-      <Container maxWidth="lg" sx={{ mb: { xs: 4, sm: 6, md: 8 }, px: { xs: 1, sm: 2, md: 3 } }}>
+      <Container maxWidth="lg" sx={{ mb: { xs: 4, sm: 6, md: 8 }, mt: { xs: 3, sm: 4, md: 5 }, px: { xs: 1, sm: 2, md: 3 } }}>
         {/* Hero Section */}
         <Grow in={true} timeout={800}>
           <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
-          {/* Hero Card with Level Progress - Enhanced */}
+          {/* Hero Card with Level Progress - Ultra Enhanced */}
           <Grid item xs={12}>
             <Paper
-              elevation={4}
+              elevation={0}
               sx={{
-                p: { xs: 3, sm: 4, md: 5 },
+                p: { xs: 4, sm: 5, md: 6 },
                 display: 'flex',
                 flexDirection: { xs: 'column', md: 'row' },
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                borderRadius: { xs: 3, md: 4 },
-                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                borderRadius: { xs: 4, md: 6 },
+                background: `linear-gradient(135deg,
+                  ${theme.palette.primary.dark} 0%,
+                  ${theme.palette.primary.main} 50%,
+                  ${theme.palette.secondary.main} 100%)`,
                 color: 'white',
                 position: 'relative',
                 overflow: 'hidden',
-                gap: { xs: 3, md: 4 },
-                boxShadow: `0 15px 35px ${alpha(theme.palette.primary.main, 0.4)}`,
-                transition: 'all 0.3s ease',
+                gap: { xs: 4, md: 5 },
+                boxShadow: `0 25px 50px ${alpha(theme.palette.primary.main, 0.3)}`,
+                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 '&:hover': {
-                  boxShadow: `0 20px 45px ${alpha(theme.palette.primary.main, 0.5)}`,
-                  transform: 'translateY(-5px)'
+                  boxShadow: `0 30px 60px ${alpha(theme.palette.primary.main, 0.4)}`,
+                  transform: 'translateY(-8px)'
                 }
               }}
             >
-              {/* Decorative elements */}
+              {/* Enhanced decorative elements */}
               <Box
                 sx={{
                   position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  width: { xs: '100px', sm: '120px', md: '150px' },
-                  height: { xs: '100px', sm: '120px', md: '150px' },
-                  background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+                  top: -50,
+                  right: -50,
+                  width: { xs: '150px', sm: '180px', md: '220px' },
+                  height: { xs: '150px', sm: '180px', md: '220px' },
+                  background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)',
                   borderRadius: '50%',
-                  transform: 'translate(30%, -30%)',
-                  display: { xs: 'none', sm: 'block' }
+                  display: { xs: 'none', sm: 'block' },
+                  animation: 'heroFloat 10s ease-in-out infinite',
+                  '@keyframes heroFloat': {
+                    '0%': { transform: 'translateY(0px) rotate(0deg)' },
+                    '50%': { transform: 'translateY(-20px) rotate(180deg)' },
+                    '100%': { transform: 'translateY(0px) rotate(360deg)' }
+                  }
                 }}
               />
               <Box
                 sx={{
                   position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  width: { xs: '80px', sm: '100px', md: '120px' },
-                  height: { xs: '80px', sm: '100px', md: '120px' },
-                  background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+                  bottom: -40,
+                  left: -40,
+                  width: { xs: '120px', sm: '140px', md: '170px' },
+                  height: { xs: '120px', sm: '140px', md: '170px' },
+                  background: 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%)',
                   borderRadius: '50%',
-                  transform: 'translate(-30%, 30%)',
-                  display: { xs: 'none', sm: 'block' }
+                  display: { xs: 'none', sm: 'block' },
+                  animation: 'heroFloat 12s ease-in-out infinite reverse',
                 }}
               />
+
+              {/* Hero sparkles */}
+              {[...Array(10)].map((_, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    position: 'absolute',
+                    width: { xs: 3, sm: 4, md: 5 },
+                    height: { xs: 3, sm: 4, md: 5 },
+                    borderRadius: '50%',
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    top: `${10 + i * 8}%`,
+                    left: `${5 + i * 9}%`,
+                    animation: `heroSparkle 5s ease-in-out infinite ${i * 0.4}s`,
+                    '@keyframes heroSparkle': {
+                      '0%, 100%': { opacity: 0, transform: 'scale(0) rotate(0deg)' },
+                      '50%': { opacity: 1, transform: 'scale(1) rotate(180deg)' }
+                    }
+                  }}
+                />
+              ))}
 
               <Box sx={{
                 display: 'flex',
@@ -327,74 +353,175 @@ const Dashboard = () => {
                 gap: { xs: 3, sm: 4 }
               }}>
                 <Box sx={{ position: 'relative' }}>
+                  {/* Enhanced rotating border */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: -8,
+                      left: -8,
+                      right: -8,
+                      bottom: -8,
+                      borderRadius: '50%',
+                      background: `conic-gradient(
+                        ${theme.palette.secondary.main} 0deg,
+                        ${theme.palette.warning.main} 120deg,
+                        ${theme.palette.info.main} 240deg,
+                        ${theme.palette.secondary.main} 360deg
+                      )`,
+                      animation: 'avatarRotate 8s linear infinite',
+                      '@keyframes avatarRotate': {
+                        '0%': { transform: 'rotate(0deg)' },
+                        '100%': { transform: 'rotate(360deg)' }
+                      }
+                    }}
+                  />
+
                   <Avatar
                     sx={{
-                      bgcolor: theme.palette.secondary.main,
-                      width: { xs: 70, sm: 80, md: 90 },
-                      height: { xs: 70, sm: 80, md: 90 },
-                      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.3)',
-                      border: '4px solid rgba(255,255,255,0.2)',
-                      transition: 'all 0.3s ease',
+                      bgcolor: 'background.paper',
+                      color: theme.palette.primary.main,
+                      width: { xs: 80, sm: 90, md: 110 },
+                      height: { xs: 80, sm: 90, md: 110 },
+                      fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+                      fontWeight: 'bold',
+                      boxShadow: `0 12px 30px ${alpha(theme.palette.primary.main, 0.4)}`,
+                      border: '6px solid white',
+                      position: 'relative',
+                      zIndex: 2,
+                      transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      animation: 'avatarFloat 6s ease-in-out infinite',
+                      '@keyframes avatarFloat': {
+                        '0%, 100%': { transform: 'translateY(0px)' },
+                        '50%': { transform: 'translateY(-8px)' }
+                      },
                       '&:hover': {
-                        transform: 'scale(1.05)',
-                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)',
+                        transform: 'scale(1.08) translateY(-4px)',
+                        boxShadow: `0 16px 40px ${alpha(theme.palette.primary.main, 0.5)}`,
                       }
                     }}
                   >
                     {user?.firstName?.charAt(0).toUpperCase() || 'S'}
                   </Avatar>
+
+                  {/* Enhanced level badge */}
                   <Tooltip title="Your current level" arrow placement="top">
                     <Avatar
                       sx={{
                         position: 'absolute',
-                        bottom: -10,
-                        right: -10,
-                        width: { xs: 32, sm: 36, md: 40 },
-                        height: { xs: 32, sm: 36, md: 40 },
-                        bgcolor: theme.palette.secondary.main,
+                        bottom: -8,
+                        right: -8,
+                        width: { xs: 36, sm: 42, md: 48 },
+                        height: { xs: 36, sm: 42, md: 48 },
+                        bgcolor: theme.palette.warning.main,
                         color: 'white',
-                        border: '3px solid white',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                        fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
+                        border: '4px solid white',
+                        boxShadow: `0 6px 16px ${alpha(theme.palette.warning.main, 0.4)}`,
+                        fontSize: { xs: '0.9rem', sm: '1rem', md: '1.2rem' },
                         fontWeight: 'bold',
-                        transition: 'all 0.3s ease',
+                        transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        animation: 'levelPulse 3s ease-in-out infinite',
+                        '@keyframes levelPulse': {
+                          '0%, 100%': { transform: 'scale(1)' },
+                          '50%': { transform: 'scale(1.1)' }
+                        },
                         '&:hover': {
-                          transform: 'scale(1.1) rotate(10deg)',
-                        }
+                          transform: 'scale(1.2) rotate(15deg)',
+                          boxShadow: `0 8px 20px ${alpha(theme.palette.warning.main, 0.6)}`,
+                        },
+                        zIndex: 3
                       }}
                     >
                       {loading ? '...' : stats.level}
                     </Avatar>
                   </Tooltip>
+
+                  {/* Online status indicator */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      width: { xs: 16, sm: 18, md: 20 },
+                      height: { xs: 16, sm: 18, md: 20 },
+                      borderRadius: '50%',
+                      bgcolor: 'success.main',
+                      border: '3px solid white',
+                      boxShadow: `0 0 0 3px ${alpha(theme.palette.success.main, 0.3)}`,
+                      animation: 'onlinePulse 2s ease-in-out infinite',
+                      '@keyframes onlinePulse': {
+                        '0%, 100%': { transform: 'scale(1)' },
+                        '50%': { transform: 'scale(1.2)' }
+                      },
+                      zIndex: 3
+                    }}
+                  />
+
+                  {/* Achievement star */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: -5,
+                      left: -5,
+                      width: { xs: 24, sm: 28, md: 32 },
+                      height: { xs: 24, sm: 28, md: 32 },
+                      borderRadius: '50%',
+                      bgcolor: theme.palette.info.main,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: `0 4px 12px ${alpha(theme.palette.info.main, 0.4)}`,
+                      animation: 'starShine 4s ease-in-out infinite',
+                      '@keyframes starShine': {
+                        '0%, 100%': { transform: 'scale(1) rotate(0deg)' },
+                        '50%': { transform: 'scale(1.15) rotate(180deg)' }
+                      },
+                      zIndex: 3
+                    }}
+                  >
+                    <Star sx={{ color: 'white', fontSize: { xs: '0.8rem', sm: '1rem', md: '1.2rem' } }} />
+                  </Box>
                 </Box>
                 <Box sx={{ maxWidth: { xs: '100%', md: '350px' } }}>
                   <Typography
-                    variant="h3"
+                    variant="h2"
                     component="h1"
                     fontWeight="bold"
                     sx={{
-                      fontSize: { xs: '1.7rem', sm: '2rem', md: '2.4rem', lg: '2.7rem' },
-                      textShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                      lineHeight: 1.2,
-                      mb: 1,
-                      background: 'linear-gradient(90deg, #ffffff, #e0e0e0)',
+                      fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem', lg: '3.5rem' },
+                      textShadow: '0 6px 20px rgba(0,0,0,0.4)',
+                      lineHeight: 1.1,
+                      mb: 2,
+                      background: 'linear-gradient(135deg, #ffffff 0%, #f0f0f0 50%, #ffffff 100%)',
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
-                      letterSpacing: '0.5px'
+                      letterSpacing: '-0.02em',
+                      position: 'relative',
+                      '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        bottom: -8,
+                        left: 0,
+                        width: '60%',
+                        height: 4,
+                        background: 'linear-gradient(90deg, rgba(255,255,255,0.8), rgba(255,255,255,0.3))',
+                        borderRadius: 2
+                      }
                     }}
                   >
-                    Welcome back, {user?.firstName || 'Student'}!
+                    Welcome back, {user?.firstName || 'Student'}! 👋
                   </Typography>
                   <Typography
-                    variant="body1"
+                    variant="h6"
                     sx={{
-                      color: 'rgba(255,255,255,0.8)',
-                      mb: 2,
-                      fontSize: { xs: '0.9rem', sm: '1rem', md: '1.1rem' },
-                      maxWidth: '90%'
+                      color: 'rgba(255,255,255,0.9)',
+                      mb: 3,
+                      fontSize: { xs: '1.1rem', sm: '1.3rem', md: '1.5rem' },
+                      fontWeight: 'medium',
+                      lineHeight: 1.4,
+                      maxWidth: '95%'
                     }}
                   >
-                    Track your progress, take exams, and improve your scores. Your learning journey continues!
+                    Ready to continue your learning journey and achieve new milestones? Let's make today count!
                   </Typography>
 
                   <Box sx={{
@@ -806,7 +933,7 @@ const Dashboard = () => {
             </Box>
           </Grid>
 
-          {/* Progress and Achievements Section - Enhanced */}
+          {/* Progress Section - Ultra Enhanced */}
           <Grid item xs={12}>
             <Box
               sx={{
@@ -819,117 +946,405 @@ const Dashboard = () => {
                 gap: 1
               }}
             >
-              <Typography
-                variant="h5"
-                fontWeight="bold"
-                sx={{
-                  fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
-                  display: 'flex',
-                  alignItems: 'center',
-                  '&::before': {
-                    content: '""',
-                    display: 'inline-block',
-                    width: { xs: 16, sm: 20 },
-                    height: { xs: 3, sm: 4 },
-                    borderRadius: 4,
-                    background: `linear-gradient(90deg, ${theme.palette.success.main}, ${theme.palette.info.main})`,
-                    mr: 1.5
-                  }
-                }}
-              >
-                Your Progress
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    width: { xs: 50, sm: 60 },
+                    height: { xs: 50, sm: 60 },
+                    borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.info.main})`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: `0 8px 20px ${alpha(theme.palette.success.main, 0.4)}`,
+                    animation: 'progressPulse 3s ease-in-out infinite',
+                    '@keyframes progressPulse': {
+                      '0%': {
+                        boxShadow: `0 0 0 0 ${alpha(theme.palette.success.main, 0.7)}`
+                      },
+                      '70%': {
+                        boxShadow: `0 0 0 15px ${alpha(theme.palette.success.main, 0)}`
+                      },
+                      '100%': {
+                        boxShadow: `0 0 0 0 ${alpha(theme.palette.success.main, 0)}`
+                      }
+                    }
+                  }}
+                >
+                  <AutoGraph sx={{ color: 'white', fontSize: { xs: '1.5rem', sm: '2rem' } }} />
+                </Box>
+                <Box>
+                  <Typography
+                    variant="h4"
+                    fontWeight="bold"
+                    sx={{
+                      fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2.2rem' },
+                      background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.info.main})`,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      letterSpacing: '0.5px',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    Your Progress
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      fontSize: { xs: '0.85rem', sm: '0.9rem' },
+                      fontWeight: 'medium',
+                      mt: 0.5
+                    }}
+                  >
+                    Track your learning journey and celebrate milestones
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  icon={<Assessment sx={{ color: 'white !important' }} />}
+                  label={`${stats.completedExams}/${stats.totalExams} Completed`}
+                  sx={{
+                    bgcolor: theme.palette.success.main,
+                    color: 'white',
+                    fontWeight: 'bold',
+                    borderRadius: 3,
+                    '& .MuiChip-icon': {
+                      color: 'white'
+                    }
+                  }}
+                />
+              </Box>
             </Box>
+
             <Box
               sx={{
-                p: { xs: 2, sm: 3 },
-                borderRadius: { xs: 2, md: 3 },
-                background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.03)} 0%, ${alpha(theme.palette.info.main, 0.03)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.success.main, 0.1)}`,
+                p: { xs: 3, sm: 4 },
+                borderRadius: { xs: 3, md: 4 },
+                background: `linear-gradient(135deg,
+                  ${alpha(theme.palette.success.main, 0.05)} 0%,
+                  ${alpha(theme.palette.info.main, 0.05)} 50%,
+                  ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
+                border: `2px solid ${alpha(theme.palette.success.main, 0.2)}`,
                 mb: { xs: 2, sm: 3 },
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                boxShadow: `0 15px 35px ${alpha(theme.palette.success.main, 0.15)}`
               }}
             >
-              {/* Decorative elements */}
+              {/* Enhanced Decorative elements */}
               <Box
                 sx={{
                   position: 'absolute',
-                  top: -30,
-                  right: -30,
+                  top: -50,
+                  right: -50,
+                  width: 200,
+                  height: 200,
+                  borderRadius: '50%',
+                  background: `radial-gradient(circle, ${alpha(theme.palette.success.main, 0.15)} 0%, transparent 70%)`,
+                  display: { xs: 'none', sm: 'block' },
+                  animation: 'progressFloat 8s ease-in-out infinite',
+                  '@keyframes progressFloat': {
+                    '0%': { transform: 'translateY(0px) rotate(0deg)' },
+                    '50%': { transform: 'translateY(-25px) rotate(180deg)' },
+                    '100%': { transform: 'translateY(0px) rotate(360deg)' }
+                  }
+                }}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: -30,
+                  left: -30,
                   width: 150,
                   height: 150,
                   borderRadius: '50%',
-                  background: `radial-gradient(circle, ${alpha(theme.palette.success.main, 0.1)} 0%, transparent 70%)`,
-                  display: { xs: 'none', sm: 'block' }
+                  background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.15)} 0%, transparent 70%)`,
+                  display: { xs: 'none', sm: 'block' },
+                  animation: 'progressFloat 10s ease-in-out infinite reverse',
                 }}
               />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  bottom: -20,
-                  left: -20,
-                  width: 100,
-                  height: 100,
-                  borderRadius: '50%',
-                  background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.1)} 0%, transparent 70%)`,
-                  display: { xs: 'none', sm: 'block' }
-                }}
-              />
+
+              {/* Progress sparkles */}
+              {[...Array(8)].map((_, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    position: 'absolute',
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    bgcolor: i % 2 === 0 ? theme.palette.success.main : theme.palette.info.main,
+                    top: `${15 + i * 12}%`,
+                    left: `${8 + i * 12}%`,
+                    animation: `progressSparkle 4s ease-in-out infinite ${i * 0.3}s`,
+                    '@keyframes progressSparkle': {
+                      '0%, 100%': { opacity: 0, transform: 'scale(0) rotate(0deg)' },
+                      '50%': { opacity: 1, transform: 'scale(1) rotate(180deg)' }
+                    }
+                  }}
+                />
+              ))}
+
               <Grid container spacing={3} sx={{ position: 'relative', zIndex: 1 }}>
-              {/* Circular Progress Card */}
+              {/* Enhanced Circular Progress Card */}
               <Grid item xs={12} sm={6} md={4}>
                 <Zoom in={true} style={{ transitionDelay: '600ms' }}>
-                  <Box>
-                    <ProgressCard
-                      title="Completion Rate"
-                      subtitle="Keep going to improve your rate!"
-                      progress={loading ? 0 : stats.completedExams}
-                      maxProgress={loading ? 1 : Math.max(stats.totalExams, 1)}
-                      color={theme.palette.success.main}
-                      type="circular"
-                      size="large"
-                      showButton={true}
-                      buttonText="View All Exams"
-                      onClick={() => window.location.href = '/student/exams'}
+                  <Card
+                    elevation={8}
+                    sx={{
+                      height: '100%',
+                      borderRadius: 4,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      background: `linear-gradient(135deg,
+                        ${alpha(theme.palette.success.main, 0.1)} 0%,
+                        ${alpha(theme.palette.info.main, 0.1)} 100%)`,
+                      border: `2px solid ${alpha(theme.palette.success.main, 0.3)}`,
+                      transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      '&:hover': {
+                        transform: 'translateY(-8px) scale(1.02)',
+                        boxShadow: `0 20px 40px ${alpha(theme.palette.success.main, 0.3)}`,
+                      }
+                    }}
+                  >
+                    {/* Progress glow effect */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: `linear-gradient(135deg,
+                          ${alpha(theme.palette.success.main, 0.1)} 0%,
+                          ${alpha(theme.palette.info.main, 0.1)} 100%)`,
+                        animation: 'progressGlow 3s ease-in-out infinite alternate',
+                        '@keyframes progressGlow': {
+                          '0%': { opacity: 0.3 },
+                          '100%': { opacity: 0.7 }
+                        }
+                      }}
                     />
-                  </Box>
+
+                    {/* Top border indicator */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: 6,
+                        background: `linear-gradient(90deg, ${theme.palette.success.main}, ${theme.palette.info.main})`,
+                        boxShadow: `0 2px 8px ${alpha(theme.palette.success.main, 0.4)}`
+                      }}
+                    />
+
+                    <CardContent sx={{ p: 3, position: 'relative', zIndex: 2, textAlign: 'center' }}>
+                      <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, color: theme.palette.success.dark }}>
+                        Completion Rate
+                      </Typography>
+
+                      {/* Enhanced Circular Progress */}
+                      <Box sx={{ position: 'relative', display: 'inline-flex', mb: 3 }}>
+                        <Box
+                          sx={{
+                            width: 120,
+                            height: 120,
+                            borderRadius: '50%',
+                            background: `conic-gradient(
+                              ${theme.palette.success.main} 0deg,
+                              ${theme.palette.success.main} ${(stats.completedExams / Math.max(stats.totalExams, 1)) * 360}deg,
+                              ${alpha(theme.palette.grey[300], 0.3)} ${(stats.completedExams / Math.max(stats.totalExams, 1)) * 360}deg,
+                              ${alpha(theme.palette.grey[300], 0.3)} 360deg
+                            )`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            position: 'relative',
+                            animation: 'progressRotate 10s linear infinite',
+                            '@keyframes progressRotate': {
+                              '0%': { transform: 'rotate(0deg)' },
+                              '100%': { transform: 'rotate(360deg)' }
+                            }
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 90,
+                              height: 90,
+                              borderRadius: '50%',
+                              bgcolor: 'background.paper',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexDirection: 'column',
+                              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.1)'
+                            }}
+                          >
+                            <Typography variant="h4" fontWeight="bold" color="success.main">
+                              {loading ? '...' : Math.round((stats.completedExams / Math.max(stats.totalExams, 1)) * 100)}%
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" fontWeight="medium">
+                              Complete
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        {/* Progress indicator dot */}
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 10,
+                            right: 10,
+                            width: 12,
+                            height: 12,
+                            borderRadius: '50%',
+                            bgcolor: theme.palette.success.main,
+                            boxShadow: `0 0 10px ${theme.palette.success.main}`,
+                            animation: 'progressPing 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+                            '@keyframes progressPing': {
+                              '75%, 100%': {
+                                transform: 'scale(2)',
+                                opacity: 0
+                              }
+                            }
+                          }}
+                        />
+                      </Box>
+
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        {loading ? 'Loading...' : `${stats.completedExams} of ${stats.totalExams} exams completed`}
+                      </Typography>
+
+                      <Button
+                        variant="contained"
+                        color="success"
+                        onClick={() => window.location.href = '/student/exams'}
+                        startIcon={<Assessment />}
+                        sx={{
+                          borderRadius: 3,
+                          px: 3,
+                          py: 1,
+                          fontWeight: 'bold',
+                          textTransform: 'none',
+                          boxShadow: `0 4px 12px ${alpha(theme.palette.success.main, 0.3)}`,
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: `0 6px 16px ${alpha(theme.palette.success.main, 0.4)}`
+                          }
+                        }}
+                      >
+                        View All Exams
+                      </Button>
+                    </CardContent>
+                  </Card>
                 </Zoom>
               </Grid>
 
-              {/* Study Streak Card */}
+              {/* Enhanced Study Streak Card */}
               <Grid item xs={12} sm={6} md={4}>
                 <Zoom in={true} style={{ transitionDelay: '700ms' }}>
-                  <Card elevation={3} sx={{ height: '100%', borderRadius: 0 }}>
-                    <CardContent sx={{ p: 3 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6" fontWeight="bold">
+                  <Card
+                    elevation={8}
+                    sx={{
+                      height: '100%',
+                      borderRadius: 4,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      background: `linear-gradient(135deg,
+                        ${alpha(theme.palette.error.main, 0.1)} 0%,
+                        ${alpha(theme.palette.warning.main, 0.1)} 100%)`,
+                      border: `2px solid ${alpha(theme.palette.error.main, 0.3)}`,
+                      transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      '&:hover': {
+                        transform: 'translateY(-8px) scale(1.02)',
+                        boxShadow: `0 20px 40px ${alpha(theme.palette.error.main, 0.3)}`,
+                      }
+                    }}
+                  >
+                    {/* Streak glow effect */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: `linear-gradient(135deg,
+                          ${alpha(theme.palette.error.main, 0.1)} 0%,
+                          ${alpha(theme.palette.warning.main, 0.1)} 100%)`,
+                        animation: 'streakGlow 2s ease-in-out infinite alternate',
+                        '@keyframes streakGlow': {
+                          '0%': { opacity: 0.3 },
+                          '100%': { opacity: 0.6 }
+                        }
+                      }}
+                    />
+
+                    {/* Top border indicator */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: 6,
+                        background: `linear-gradient(90deg, ${theme.palette.error.main}, ${theme.palette.warning.main})`,
+                        boxShadow: `0 2px 8px ${alpha(theme.palette.error.main, 0.4)}`
+                      }}
+                    />
+
+                    <CardContent sx={{ p: 3, position: 'relative', zIndex: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                        <Typography variant="h6" fontWeight="bold" color="error.dark">
                           Study Streak
                         </Typography>
                         <Tooltip title="Days in a row you've studied">
-                          <IconButton size="small">
-                            <LocalFireDepartment color="error" />
-                          </IconButton>
+                          <Avatar
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              bgcolor: theme.palette.error.main,
+                              animation: 'fireFlicker 1.5s ease-in-out infinite alternate',
+                              '@keyframes fireFlicker': {
+                                '0%': { transform: 'scale(1) rotate(-2deg)' },
+                                '100%': { transform: 'scale(1.1) rotate(2deg)' }
+                              }
+                            }}
+                          >
+                            <LocalFireDepartment sx={{ color: 'white' }} />
+                          </Avatar>
                         </Tooltip>
                       </Box>
 
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, gap: 0.5 }}>
                         {[1, 2, 3, 4, 5, 6, 7].map((day) => (
                           <Box
                             key={day}
                             sx={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: 0, // Remove rounded corners
+                              width: { xs: 32, sm: 36 },
+                              height: { xs: 32, sm: 36 },
+                              borderRadius: 2,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               bgcolor: day <= studyStreak ? 'error.main' : alpha(theme.palette.error.main, 0.1),
                               color: day <= studyStreak ? 'white' : 'text.secondary',
                               fontWeight: 'bold',
-                              boxShadow: day <= studyStreak ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
-                              transition: 'all 0.3s ease',
-                              transform: day === studyStreak ? 'scale(1.2)' : 'scale(1)',
+                              fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                              boxShadow: day <= studyStreak ? `0 4px 12px ${alpha(theme.palette.error.main, 0.4)}` : 'none',
+                              transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                              transform: day === studyStreak ? 'scale(1.15) translateY(-2px)' : 'scale(1)',
+                              border: day === studyStreak ? `2px solid ${theme.palette.warning.main}` : 'none',
+                              animation: day <= studyStreak ? `streakPulse 2s ease-in-out infinite ${day * 0.1}s` : 'none',
+                              '@keyframes streakPulse': {
+                                '0%, 100%': { boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0.7)}` },
+                                '50%': { boxShadow: `0 0 0 4px ${alpha(theme.palette.error.main, 0)}` }
+                              }
                             }}
                           >
                             {day}
@@ -937,70 +1352,249 @@ const Dashboard = () => {
                         ))}
                       </Box>
 
-                      <Typography variant="body2" color="text.secondary" align="center">
+                      <Box sx={{ textAlign: 'center' }}>
                         {studyStreak === 7 ? (
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                            <Celebration color="error" />
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
+                            <Celebration
+                              sx={{
+                                color: theme.palette.error.main,
+                                animation: 'celebrate 1s ease-in-out infinite alternate',
+                                '@keyframes celebrate': {
+                                  '0%': { transform: 'rotate(-10deg) scale(1)' },
+                                  '100%': { transform: 'rotate(10deg) scale(1.2)' }
+                                }
+                              }}
+                            />
                             <Typography variant="body1" fontWeight="bold" color="error.main">
                               Perfect week! Keep it up!
                             </Typography>
                           </Box>
                         ) : (
-                          `You're on a ${studyStreak}-day streak! ${7 - studyStreak} more days for a perfect week.`
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            You're on a {studyStreak}-day streak! {7 - studyStreak} more days for a perfect week.
+                          </Typography>
                         )}
-                      </Typography>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                          <Chip
+                            label={`${studyStreak} Days`}
+                            size="small"
+                            sx={{
+                              bgcolor: alpha(theme.palette.error.main, 0.2),
+                              color: theme.palette.error.dark,
+                              fontWeight: 'bold',
+                              borderRadius: 2
+                            }}
+                          />
+                          <Chip
+                            label={studyStreak >= 7 ? "🔥 On Fire!" : "🎯 Keep Going!"}
+                            size="small"
+                            sx={{
+                              bgcolor: alpha(theme.palette.warning.main, 0.2),
+                              color: theme.palette.warning.dark,
+                              fontWeight: 'bold',
+                              borderRadius: 2
+                            }}
+                          />
+                        </Box>
+                      </Box>
                     </CardContent>
                   </Card>
                 </Zoom>
               </Grid>
 
-              {/* Rank Card */}
+              {/* Enhanced Rank Card */}
               <Grid item xs={12} sm={6} md={4}>
                 <Zoom in={true} style={{ transitionDelay: '800ms' }}>
-                  <Card elevation={3} sx={{ height: '100%', borderRadius: 0 }}>
-                    <CardContent sx={{ p: 3 }}>
+                  <Card
+                    elevation={8}
+                    sx={{
+                      height: '100%',
+                      borderRadius: 4,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      background: `linear-gradient(135deg,
+                        ${alpha(theme.palette.primary.main, 0.1)} 0%,
+                        ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+                      border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                      transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      '&:hover': {
+                        transform: 'translateY(-8px) scale(1.02)',
+                        boxShadow: `0 20px 40px ${alpha(theme.palette.primary.main, 0.3)}`,
+                      }
+                    }}
+                  >
+                    {/* Rank glow effect */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: `linear-gradient(135deg,
+                          ${alpha(theme.palette.primary.main, 0.1)} 0%,
+                          ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+                        animation: 'rankGlow 4s ease-in-out infinite alternate',
+                        '@keyframes rankGlow': {
+                          '0%': { opacity: 0.3 },
+                          '100%': { opacity: 0.6 }
+                        }
+                      }}
+                    />
+
+                    {/* Top border indicator */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: 6,
+                        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.4)}`
+                      }}
+                    />
+
+                    <CardContent sx={{ p: 3, position: 'relative', zIndex: 2, textAlign: 'center' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                        <Typography variant="h6" fontWeight="bold">
+                        <Typography variant="h6" fontWeight="bold" color="primary.dark">
                           Your Rank
                         </Typography>
                         <Tooltip title="Your position on the leaderboard">
-                          <IconButton size="small">
-                            <LeaderboardIcon color="primary" />
-                          </IconButton>
+                          <Avatar
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              bgcolor: theme.palette.primary.main,
+                              animation: 'rankBounce 2s ease-in-out infinite',
+                              '@keyframes rankBounce': {
+                                '0%, 20%, 50%, 80%, 100%': { transform: 'translateY(0)' },
+                                '40%': { transform: 'translateY(-8px)' },
+                                '60%': { transform: 'translateY(-4px)' }
+                              }
+                            }}
+                          >
+                            <LeaderboardIcon sx={{ color: 'white' }} />
+                          </Avatar>
                         </Tooltip>
                       </Box>
 
-                      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-                        <Avatar
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3, position: 'relative' }}>
+                        <Box
                           sx={{
-                            width: 80,
-                            height: 80,
-                            bgcolor: 'primary.main',
-                            fontSize: '2rem',
-                            fontWeight: 'bold',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                            border: '4px solid white',
+                            position: 'relative',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                           }}
                         >
-                          #{loading ? "..." : stats.rank}
-                        </Avatar>
+                          {/* Rank circle with animated border */}
+                          <Box
+                            sx={{
+                              width: 100,
+                              height: 100,
+                              borderRadius: '50%',
+                              background: `conic-gradient(
+                                ${theme.palette.primary.main} 0deg,
+                                ${theme.palette.secondary.main} 120deg,
+                                ${theme.palette.primary.main} 240deg,
+                                ${theme.palette.secondary.main} 360deg
+                              )`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              animation: 'rankRotate 8s linear infinite',
+                              '@keyframes rankRotate': {
+                                '0%': { transform: 'rotate(0deg)' },
+                                '100%': { transform: 'rotate(360deg)' }
+                              }
+                            }}
+                          >
+                            <Avatar
+                              sx={{
+                                width: 80,
+                                height: 80,
+                                bgcolor: 'background.paper',
+                                fontSize: '1.8rem',
+                                fontWeight: 'bold',
+                                color: theme.palette.primary.main,
+                                boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.1)',
+                                border: `3px solid ${theme.palette.background.paper}`
+                              }}
+                            >
+                              #{loading ? "..." : stats.rank}
+                            </Avatar>
+                          </Box>
+
+                          {/* Crown for top ranks */}
+                          {stats.rank <= 3 && (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                top: -10,
+                                right: -5,
+                                fontSize: '1.5rem',
+                                animation: 'crownShine 2s ease-in-out infinite alternate',
+                                '@keyframes crownShine': {
+                                  '0%': { transform: 'scale(1) rotate(-5deg)' },
+                                  '100%': { transform: 'scale(1.2) rotate(5deg)' }
+                                }
+                              }}
+                            >
+                              👑
+                            </Box>
+                          )}
+                        </Box>
                       </Box>
 
-                      <Typography variant="body1" align="center" fontWeight="medium">
+                      <Typography variant="body1" align="center" fontWeight="medium" sx={{ mb: 2 }}>
                         {loading ? "Loading rank..." : `You're in the top ${stats.rank * 10}% of students!`}
                       </Typography>
 
-                      <Box sx={{ mt: 2, textAlign: 'center' }}>
-                        <Button
-                          variant="outlined"
-                          color="primary"
+                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 2 }}>
+                        <Chip
+                          label={`Rank #${stats.rank}`}
                           size="small"
-                          startIcon={<AutoGraph />}
-                          sx={{ borderRadius: 0 }} // Remove rounded corners
-                        >
-                          View Leaderboard
-                        </Button>
+                          sx={{
+                            bgcolor: alpha(theme.palette.primary.main, 0.2),
+                            color: theme.palette.primary.dark,
+                            fontWeight: 'bold',
+                            borderRadius: 2
+                          }}
+                        />
+                        <Chip
+                          label={stats.rank <= 3 ? "🏆 Top Performer" : "📈 Keep Climbing"}
+                          size="small"
+                          sx={{
+                            bgcolor: alpha(theme.palette.secondary.main, 0.2),
+                            color: theme.palette.secondary.dark,
+                            fontWeight: 'bold',
+                            borderRadius: 2
+                          }}
+                        />
                       </Box>
+
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        size="small"
+                        startIcon={<AutoGraph />}
+                        sx={{
+                          borderRadius: 3,
+                          px: 3,
+                          py: 1,
+                          fontWeight: 'bold',
+                          textTransform: 'none',
+                          boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`
+                          }
+                        }}
+                      >
+                        View Leaderboard
+                      </Button>
                     </CardContent>
                   </Card>
                 </Zoom>
@@ -1009,7 +1603,7 @@ const Dashboard = () => {
             </Box>
           </Grid>
 
-          {/* Achievements Section - Enhanced */}
+          {/* Achievements Section - Ultra Enhanced */}
           <Grid item xs={12}>
             <Box
               sx={{
@@ -1022,86 +1616,381 @@ const Dashboard = () => {
                 gap: 1
               }}
             >
-              <Typography
-                variant="h5"
-                fontWeight="bold"
-                sx={{
-                  fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
-                  display: 'flex',
-                  alignItems: 'center',
-                  '&::before': {
-                    content: '""',
-                    display: 'inline-block',
-                    width: { xs: 16, sm: 20 },
-                    height: { xs: 3, sm: 4 },
-                    borderRadius: 4,
-                    background: `linear-gradient(90deg, ${theme.palette.warning.main}, ${theme.palette.error.main})`,
-                    mr: 1.5
-                  }
-                }}
-              >
-                Your Achievements
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    width: { xs: 50, sm: 60 },
+                    height: { xs: 50, sm: 60 },
+                    borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.error.main})`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: `0 8px 20px ${alpha(theme.palette.warning.main, 0.4)}`,
+                    animation: 'pulse 2s infinite',
+                    '@keyframes pulse': {
+                      '0%': {
+                        boxShadow: `0 0 0 0 ${alpha(theme.palette.warning.main, 0.7)}`
+                      },
+                      '70%': {
+                        boxShadow: `0 0 0 10px ${alpha(theme.palette.warning.main, 0)}`
+                      },
+                      '100%': {
+                        boxShadow: `0 0 0 0 ${alpha(theme.palette.warning.main, 0)}`
+                      }
+                    }
+                  }}
+                >
+                  <EmojiEvents sx={{ color: 'white', fontSize: { xs: '1.5rem', sm: '2rem' } }} />
+                </Box>
+                <Box>
+                  <Typography
+                    variant="h4"
+                    fontWeight="bold"
+                    sx={{
+                      fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2.2rem' },
+                      background: `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.error.main})`,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      letterSpacing: '0.5px',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    Your Achievements
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      fontSize: { xs: '0.85rem', sm: '0.9rem' },
+                      fontWeight: 'medium',
+                      mt: 0.5
+                    }}
+                  >
+                    Unlock rewards as you progress through your learning journey
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  icon={<Star sx={{ color: 'white !important' }} />}
+                  label={`${achievements.filter(a => a.unlocked).length}/${achievements.length} Unlocked`}
+                  sx={{
+                    bgcolor: theme.palette.warning.main,
+                    color: 'white',
+                    fontWeight: 'bold',
+                    borderRadius: 3,
+                    '& .MuiChip-icon': {
+                      color: 'white'
+                    }
+                  }}
+                />
+              </Box>
             </Box>
+
             <Box
               sx={{
-                p: { xs: 2, sm: 3 },
-                borderRadius: { xs: 2, md: 3 },
-                background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.03)} 0%, ${alpha(theme.palette.error.main, 0.03)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}`,
+                p: { xs: 3, sm: 4 },
+                borderRadius: { xs: 3, md: 4 },
+                background: `linear-gradient(135deg,
+                  ${alpha(theme.palette.warning.main, 0.05)} 0%,
+                  ${alpha(theme.palette.error.main, 0.05)} 50%,
+                  ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+                border: `2px solid ${alpha(theme.palette.warning.main, 0.2)}`,
                 mb: { xs: 2, sm: 3 },
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                boxShadow: `0 15px 35px ${alpha(theme.palette.warning.main, 0.15)}`
               }}
             >
-              {/* Decorative elements */}
+              {/* Enhanced Decorative elements */}
               <Box
                 sx={{
                   position: 'absolute',
-                  top: -30,
-                  right: -30,
+                  top: -50,
+                  right: -50,
+                  width: 200,
+                  height: 200,
+                  borderRadius: '50%',
+                  background: `radial-gradient(circle, ${alpha(theme.palette.warning.main, 0.15)} 0%, transparent 70%)`,
+                  display: { xs: 'none', sm: 'block' },
+                  animation: 'float 6s ease-in-out infinite',
+                  '@keyframes float': {
+                    '0%': { transform: 'translateY(0px)' },
+                    '50%': { transform: 'translateY(-20px)' },
+                    '100%': { transform: 'translateY(0px)' }
+                  }
+                }}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: -30,
+                  left: -30,
                   width: 150,
                   height: 150,
                   borderRadius: '50%',
-                  background: `radial-gradient(circle, ${alpha(theme.palette.warning.main, 0.1)} 0%, transparent 70%)`,
-                  display: { xs: 'none', sm: 'block' }
+                  background: `radial-gradient(circle, ${alpha(theme.palette.error.main, 0.15)} 0%, transparent 70%)`,
+                  display: { xs: 'none', sm: 'block' },
+                  animation: 'float 8s ease-in-out infinite reverse',
                 }}
               />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  bottom: -20,
-                  left: -20,
-                  width: 100,
-                  height: 100,
-                  borderRadius: '50%',
-                  background: `radial-gradient(circle, ${alpha(theme.palette.error.main, 0.1)} 0%, transparent 70%)`,
-                  display: { xs: 'none', sm: 'block' }
-                }}
-              />
+
+              {/* Sparkle effects */}
+              {[...Array(6)].map((_, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    position: 'absolute',
+                    width: 4,
+                    height: 4,
+                    borderRadius: '50%',
+                    bgcolor: theme.palette.warning.main,
+                    top: `${20 + i * 15}%`,
+                    left: `${10 + i * 15}%`,
+                    animation: `sparkle 3s ease-in-out infinite ${i * 0.5}s`,
+                    '@keyframes sparkle': {
+                      '0%, 100%': { opacity: 0, transform: 'scale(0)' },
+                      '50%': { opacity: 1, transform: 'scale(1)' }
+                    }
+                  }}
+                />
+              ))}
+
               <Grid container spacing={3} sx={{ position: 'relative', zIndex: 1 }}>
               {loading ? (
                 Array.from(new Array(4)).map((_, index) => (
                   <Grid item xs={12} sm={6} md={3} key={index}>
-                    <Skeleton variant="rounded" height={180} sx={{ borderRadius: 0 }} />
+                    <Box
+                      sx={{
+                        height: 220,
+                        borderRadius: 3,
+                        background: `linear-gradient(135deg, ${alpha(theme.palette.grey[300], 0.3)}, ${alpha(theme.palette.grey[400], 0.3)})`,
+                        animation: 'shimmer 1.5s ease-in-out infinite',
+                        '@keyframes shimmer': {
+                          '0%': { opacity: 0.6 },
+                          '50%': { opacity: 1 },
+                          '100%': { opacity: 0.6 }
+                        }
+                      }}
+                    />
                   </Grid>
                 ))
               ) : (
                 achievements.map((achievement, index) => (
                   <Grid item xs={12} sm={6} md={3} key={achievement.id}>
-                    <Zoom in={true} style={{ transitionDelay: `${900 + (index * 100)}ms` }}>
-                      <Box>
-                        <AchievementCard
-                          title={achievement.title}
-                          description={achievement.description}
-                          progress={achievement.progress}
-                          maxProgress={achievement.maxProgress}
-                          level={achievement.level}
-                          type={achievement.type}
-                          icon={achievement.icon}
-                          unlocked={achievement.unlocked}
+                    <Zoom in={true} style={{ transitionDelay: `${900 + (index * 150)}ms` }}>
+                      <Card
+                        elevation={achievement.unlocked ? 8 : 3}
+                        sx={{
+                          height: '100%',
+                          borderRadius: 4,
+                          position: 'relative',
+                          overflow: 'hidden',
+                          background: achievement.unlocked
+                            ? `linear-gradient(135deg,
+                                ${alpha(theme.palette.warning.main, 0.1)} 0%,
+                                ${alpha(theme.palette.error.main, 0.1)} 100%)`
+                            : `linear-gradient(135deg,
+                                ${alpha(theme.palette.grey[300], 0.1)} 0%,
+                                ${alpha(theme.palette.grey[400], 0.1)} 100%)`,
+                          border: achievement.unlocked
+                            ? `2px solid ${alpha(theme.palette.warning.main, 0.3)}`
+                            : `2px solid ${alpha(theme.palette.grey[300], 0.3)}`,
+                          transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                          transform: achievement.unlocked ? 'scale(1)' : 'scale(0.95)',
+                          filter: achievement.unlocked ? 'none' : 'grayscale(0.7)',
+                          '&:hover': {
+                            transform: achievement.unlocked ? 'translateY(-8px) scale(1.02)' : 'scale(0.98)',
+                            boxShadow: achievement.unlocked
+                              ? `0 20px 40px ${alpha(theme.palette.warning.main, 0.3)}`
+                              : `0 10px 20px ${alpha(theme.palette.grey[400], 0.2)}`,
+                          }
+                        }}
+                      >
+                        {/* Achievement glow effect */}
+                        {achievement.unlocked && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              background: `linear-gradient(135deg,
+                                ${alpha(theme.palette.warning.main, 0.1)} 0%,
+                                ${alpha(theme.palette.error.main, 0.1)} 100%)`,
+                              animation: 'glow 2s ease-in-out infinite alternate',
+                              '@keyframes glow': {
+                                '0%': { opacity: 0.3 },
+                                '100%': { opacity: 0.6 }
+                              }
+                            }}
+                          />
+                        )}
+
+                        {/* Top border indicator */}
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: 6,
+                            background: achievement.unlocked
+                              ? `linear-gradient(90deg, ${theme.palette.warning.main}, ${theme.palette.error.main})`
+                              : `linear-gradient(90deg, ${theme.palette.grey[300]}, ${theme.palette.grey[400]})`,
+                            boxShadow: achievement.unlocked
+                              ? `0 2px 8px ${alpha(theme.palette.warning.main, 0.4)}`
+                              : 'none'
+                          }}
                         />
-                      </Box>
+
+                        <CardContent sx={{ p: 3, position: 'relative', zIndex: 2 }}>
+                          {/* Achievement Icon */}
+                          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                            <Avatar
+                              sx={{
+                                width: 60,
+                                height: 60,
+                                bgcolor: achievement.unlocked
+                                  ? theme.palette.warning.main
+                                  : theme.palette.grey[400],
+                                boxShadow: achievement.unlocked
+                                  ? `0 8px 20px ${alpha(theme.palette.warning.main, 0.4)}`
+                                  : `0 4px 10px ${alpha(theme.palette.grey[400], 0.3)}`,
+                                border: `3px solid ${achievement.unlocked ? 'white' : alpha(theme.palette.grey[300], 0.5)}`,
+                                transition: 'all 0.3s ease',
+                                animation: achievement.unlocked ? 'bounce 2s ease-in-out infinite' : 'none',
+                                '@keyframes bounce': {
+                                  '0%, 20%, 50%, 80%, 100%': { transform: 'translateY(0)' },
+                                  '40%': { transform: 'translateY(-10px)' },
+                                  '60%': { transform: 'translateY(-5px)' }
+                                }
+                              }}
+                            >
+                              {achievement.icon === 'trophy' && <EmojiEvents sx={{ fontSize: '2rem', color: 'white' }} />}
+                              {achievement.icon === 'star' && <Star sx={{ fontSize: '2rem', color: 'white' }} />}
+                              {achievement.icon === 'bolt' && <Assessment sx={{ fontSize: '2rem', color: 'white' }} />}
+                              {achievement.icon === 'fire' && <LocalFireDepartment sx={{ fontSize: '2rem', color: 'white' }} />}
+                            </Avatar>
+
+                            {/* Unlock indicator */}
+                            {achievement.unlocked && (
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  top: -5,
+                                  right: -5,
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: '50%',
+                                  bgcolor: theme.palette.success.main,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  boxShadow: `0 2px 8px ${alpha(theme.palette.success.main, 0.4)}`,
+                                  animation: 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+                                  '@keyframes ping': {
+                                    '75%, 100%': {
+                                      transform: 'scale(2)',
+                                      opacity: 0
+                                    }
+                                  }
+                                }}
+                              >
+                                <CheckCircle sx={{ fontSize: '1rem', color: 'white' }} />
+                              </Box>
+                            )}
+                          </Box>
+
+                          {/* Achievement Title */}
+                          <Typography
+                            variant="h6"
+                            fontWeight="bold"
+                            align="center"
+                            sx={{
+                              mb: 1,
+                              fontSize: { xs: '1rem', sm: '1.1rem' },
+                              color: achievement.unlocked
+                                ? theme.palette.text.primary
+                                : theme.palette.text.secondary,
+                              textShadow: achievement.unlocked ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+                            }}
+                          >
+                            {achievement.title}
+                          </Typography>
+
+                          {/* Achievement Description */}
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            align="center"
+                            sx={{
+                              mb: 2,
+                              fontSize: { xs: '0.8rem', sm: '0.85rem' },
+                              lineHeight: 1.4,
+                              opacity: achievement.unlocked ? 1 : 0.7
+                            }}
+                          >
+                            {achievement.description}
+                          </Typography>
+
+                          {/* Progress Bar */}
+                          <Box sx={{ mb: 2 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="caption" color="text.secondary" fontWeight="medium">
+                                Progress
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                                {achievement.progress}/{achievement.maxProgress}
+                              </Typography>
+                            </Box>
+                            <LinearProgress
+                              variant="determinate"
+                              value={(achievement.progress / achievement.maxProgress) * 100}
+                              sx={{
+                                height: 8,
+                                borderRadius: 4,
+                                bgcolor: alpha(theme.palette.grey[300], 0.3),
+                                '& .MuiLinearProgress-bar': {
+                                  borderRadius: 4,
+                                  background: achievement.unlocked
+                                    ? `linear-gradient(90deg, ${theme.palette.warning.main}, ${theme.palette.error.main})`
+                                    : `linear-gradient(90deg, ${theme.palette.grey[400]}, ${theme.palette.grey[500]})`,
+                                  boxShadow: achievement.unlocked
+                                    ? `0 0 10px ${alpha(theme.palette.warning.main, 0.5)}`
+                                    : 'none',
+                                  transition: 'all 0.3s ease'
+                                }
+                              }}
+                            />
+                          </Box>
+
+                          {/* Achievement Level Badge */}
+                          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                            <Chip
+                              label={`Level ${achievement.level}`}
+                              size="small"
+                              sx={{
+                                bgcolor: achievement.unlocked
+                                  ? alpha(theme.palette.warning.main, 0.2)
+                                  : alpha(theme.palette.grey[400], 0.2),
+                                color: achievement.unlocked
+                                  ? theme.palette.warning.dark
+                                  : theme.palette.grey[600],
+                                fontWeight: 'bold',
+                                borderRadius: 2,
+                                border: achievement.unlocked
+                                  ? `1px solid ${alpha(theme.palette.warning.main, 0.3)}`
+                                  : `1px solid ${alpha(theme.palette.grey[400], 0.3)}`
+                              }}
+                            />
+                          </Box>
+                        </CardContent>
+                      </Card>
                     </Zoom>
                   </Grid>
                 ))
@@ -1110,7 +1999,7 @@ const Dashboard = () => {
             </Box>
           </Grid>
 
-          {/* Leaderboard and Recent Exams Section - Enhanced */}
+          {/* Activity & Leaderboard Section - Ultra Enhanced */}
           <Grid item xs={12}>
             <Box
               sx={{
@@ -1123,55 +2012,194 @@ const Dashboard = () => {
                 gap: 1
               }}
             >
-              <Typography
-                variant="h5"
-                fontWeight="bold"
-                sx={{
-                  fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
-                  display: 'flex',
-                  alignItems: 'center',
-                  '&::before': {
-                    content: '""',
-                    display: 'inline-block',
-                    width: { xs: 16, sm: 20 },
-                    height: { xs: 3, sm: 4 },
-                    borderRadius: 4,
-                    background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.info.main})`,
-                    mr: 1.5
-                  }
-                }}
-              >
-                Activity & Leaderboard
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    width: { xs: 50, sm: 60 },
+                    height: { xs: 50, sm: 60 },
+                    borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.info.main})`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+                    animation: 'activityPulse 3s ease-in-out infinite',
+                    '@keyframes activityPulse': {
+                      '0%': {
+                        boxShadow: `0 0 0 0 ${alpha(theme.palette.primary.main, 0.7)}`
+                      },
+                      '70%': {
+                        boxShadow: `0 0 0 15px ${alpha(theme.palette.primary.main, 0)}`
+                      },
+                      '100%': {
+                        boxShadow: `0 0 0 0 ${alpha(theme.palette.primary.main, 0)}`
+                      }
+                    }
+                  }}
+                >
+                  <LeaderboardIcon sx={{ color: 'white', fontSize: { xs: '1.5rem', sm: '2rem' } }} />
+                </Box>
+                <Box>
+                  <Typography
+                    variant="h4"
+                    fontWeight="bold"
+                    sx={{
+                      fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2.2rem' },
+                      background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.info.main})`,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      letterSpacing: '0.5px',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    Activity & Leaderboard
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      fontSize: { xs: '0.85rem', sm: '0.9rem' },
+                      fontWeight: 'medium',
+                      mt: 0.5
+                    }}
+                  >
+                    Compete with classmates and track your recent exam activity
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  icon={<Assessment sx={{ color: 'white !important' }} />}
+                  label={`${recentExams.length} Recent Exams`}
+                  sx={{
+                    bgcolor: theme.palette.info.main,
+                    color: 'white',
+                    fontWeight: 'bold',
+                    borderRadius: 3,
+                    '& .MuiChip-icon': {
+                      color: 'white'
+                    }
+                  }}
+                />
+              </Box>
             </Box>
             <Grid container spacing={3}>
-              {/* Leaderboard */}
+              {/* Enhanced Leaderboard */}
               <Grid item xs={12} md={4}>
                 <Box
                   sx={{
-                    p: { xs: 2, sm: 2.5 },
-                    borderRadius: { xs: 2, md: 3 },
-                    background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, ${alpha(theme.palette.info.main, 0.03)} 100%)`,
-                    border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                    p: { xs: 3, sm: 4 },
+                    borderRadius: { xs: 3, md: 4 },
+                    background: `linear-gradient(135deg,
+                      ${alpha(theme.palette.primary.main, 0.05)} 0%,
+                      ${alpha(theme.palette.info.main, 0.05)} 50%,
+                      ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+                    border: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                     mb: { xs: 2, sm: 3 },
                     height: '100%',
                     position: 'relative',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    boxShadow: `0 15px 35px ${alpha(theme.palette.primary.main, 0.15)}`
                   }}
                 >
-                  <Typography
-                    variant="h6"
-                    fontWeight="bold"
+                  {/* Enhanced Decorative elements */}
+                  <Box
                     sx={{
-                      mb: 2,
-                      fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' },
-                      color: theme.palette.primary.main
+                      position: 'absolute',
+                      top: -40,
+                      right: -40,
+                      width: 180,
+                      height: 180,
+                      borderRadius: '50%',
+                      background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.15)} 0%, transparent 70%)`,
+                      display: { xs: 'none', sm: 'block' },
+                      animation: 'leaderboardFloat 10s ease-in-out infinite',
+                      '@keyframes leaderboardFloat': {
+                        '0%': { transform: 'translateY(0px) rotate(0deg)' },
+                        '50%': { transform: 'translateY(-20px) rotate(180deg)' },
+                        '100%': { transform: 'translateY(0px) rotate(360deg)' }
+                      }
                     }}
-                  >
-                    Leaderboard
-                  </Typography>
+                  />
+
+                  {/* Leaderboard sparkles */}
+                  {[...Array(5)].map((_, i) => (
+                    <Box
+                      key={i}
+                      sx={{
+                        position: 'absolute',
+                        width: 4,
+                        height: 4,
+                        borderRadius: '50%',
+                        bgcolor: i % 2 === 0 ? theme.palette.primary.main : theme.palette.info.main,
+                        top: `${20 + i * 15}%`,
+                        left: `${10 + i * 20}%`,
+                        animation: `leaderboardSparkle 3s ease-in-out infinite ${i * 0.4}s`,
+                        '@keyframes leaderboardSparkle': {
+                          '0%, 100%': { opacity: 0, transform: 'scale(0) rotate(0deg)' },
+                          '50%': { opacity: 1, transform: 'scale(1) rotate(180deg)' }
+                        }
+                      }}
+                    />
+                  ))}
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, position: 'relative', zIndex: 1 }}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                        boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                        mr: 2,
+                        animation: 'leaderboardIconBounce 2s ease-in-out infinite',
+                        '@keyframes leaderboardIconBounce': {
+                          '0%, 20%, 50%, 80%, 100%': { transform: 'translateY(0)' },
+                          '40%': { transform: 'translateY(-5px)' },
+                          '60%': { transform: 'translateY(-2px)' }
+                        }
+                      }}
+                    >
+                      <EmojiEvents sx={{ color: 'white', fontSize: '1.5rem' }} />
+                    </Box>
+                    <Box>
+                      <Typography
+                        variant="h6"
+                        fontWeight="bold"
+                        sx={{
+                          fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.35rem' },
+                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.info.main})`,
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          backgroundClip: 'text',
+                          position: 'relative',
+                          '&::after': {
+                            content: '""',
+                            position: 'absolute',
+                            bottom: -3,
+                            left: 0,
+                            width: '60%',
+                            height: 2,
+                            backgroundColor: theme.palette.primary.main,
+                            borderRadius: 1
+                          }
+                        }}
+                      >
+                        Class Leaderboard
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        Top performers in your class
+                      </Typography>
+                    </Box>
+                  </Box>
+
                 <Zoom in={true} style={{ transitionDelay: '1200ms' }}>
-                  <Box>
+                  <Box sx={{ position: 'relative', zIndex: 1 }}>
                     <Leaderboard
                       title={leaderboardData.length > 0 ? "Class Leaderboard" : "No Classmates Found"}
                       subtitle={leaderboardData.length > 0 ?
@@ -1193,71 +2221,128 @@ const Dashboard = () => {
                 </Box>
               </Grid>
 
-              {/* Recent Exams */}
+              {/* Enhanced Recent Exams */}
               <Grid item xs={12} md={8}>
                 <Box
                   sx={{
-                    p: { xs: 3, sm: 3.5 },
+                    p: { xs: 3, sm: 4 },
                     borderRadius: { xs: 3, md: 4 },
-                    background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.05)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`,
-                    border: `1px solid ${alpha(theme.palette.info.main, 0.15)}`,
+                    background: `linear-gradient(135deg,
+                      ${alpha(theme.palette.info.main, 0.05)} 0%,
+                      ${alpha(theme.palette.success.main, 0.05)} 50%,
+                      ${alpha(theme.palette.warning.main, 0.05)} 100%)`,
+                    border: `2px solid ${alpha(theme.palette.info.main, 0.2)}`,
                     mb: { xs: 2, sm: 3 },
                     height: '100%',
                     position: 'relative',
                     overflow: 'hidden',
-                    boxShadow: `0 10px 30px ${alpha(theme.palette.info.main, 0.1)}`
+                    boxShadow: `0 15px 35px ${alpha(theme.palette.info.main, 0.15)}`
                   }}
                 >
+                  {/* Enhanced Decorative elements */}
                   <Box
                     sx={{
                       position: 'absolute',
-                      top: -50,
-                      right: -50,
-                      width: 200,
-                      height: 200,
+                      top: -60,
+                      right: -60,
+                      width: 220,
+                      height: 220,
                       borderRadius: '50%',
-                      background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.1)} 0%, transparent 70%)`,
-                      zIndex: 0
+                      background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.15)} 0%, transparent 70%)`,
+                      zIndex: 0,
+                      animation: 'examFloat 12s ease-in-out infinite',
+                      '@keyframes examFloat': {
+                        '0%': { transform: 'translateY(0px) rotate(0deg)' },
+                        '50%': { transform: 'translateY(-30px) rotate(180deg)' },
+                        '100%': { transform: 'translateY(0px) rotate(360deg)' }
+                      }
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: -40,
+                      left: -40,
+                      width: 160,
+                      height: 160,
+                      borderRadius: '50%',
+                      background: `radial-gradient(circle, ${alpha(theme.palette.success.main, 0.15)} 0%, transparent 70%)`,
+                      zIndex: 0,
+                      animation: 'examFloat 15s ease-in-out infinite reverse',
                     }}
                   />
 
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, position: 'relative', zIndex: 1 }}>
+                  {/* Exam sparkles */}
+                  {[...Array(6)].map((_, i) => (
+                    <Box
+                      key={i}
+                      sx={{
+                        position: 'absolute',
+                        width: 5,
+                        height: 5,
+                        borderRadius: '50%',
+                        bgcolor: [theme.palette.info.main, theme.palette.success.main, theme.palette.warning.main][i % 3],
+                        top: `${15 + i * 12}%`,
+                        left: `${5 + i * 15}%`,
+                        animation: `examSparkle 4s ease-in-out infinite ${i * 0.5}s`,
+                        '@keyframes examSparkle': {
+                          '0%, 100%': { opacity: 0, transform: 'scale(0) rotate(0deg)' },
+                          '50%': { opacity: 1, transform: 'scale(1) rotate(180deg)' }
+                        }
+                      }}
+                    />
+                  ))}
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, position: 'relative', zIndex: 1 }}>
                     <Box
                       sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '12px',
+                        width: 50,
+                        height: 50,
+                        borderRadius: '16px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
-                        boxShadow: `0 4px 12px ${alpha(theme.palette.info.main, 0.3)}`,
-                        mr: 2
-                      }}
-                    >
-                      <Assessment sx={{ color: 'white' }} />
-                    </Box>
-                    <Typography
-                      variant="h6"
-                      fontWeight="bold"
-                      sx={{
-                        fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.35rem' },
-                        color: theme.palette.info.main,
-                        position: 'relative',
-                        '&::after': {
-                          content: '""',
-                          position: 'absolute',
-                          bottom: -5,
-                          left: 0,
-                          width: '40%',
-                          height: 2,
-                          backgroundColor: theme.palette.info.main,
-                          borderRadius: 1
+                        boxShadow: `0 6px 16px ${alpha(theme.palette.info.main, 0.4)}`,
+                        mr: 3,
+                        animation: 'examIconPulse 3s ease-in-out infinite',
+                        '@keyframes examIconPulse': {
+                          '0%, 100%': { transform: 'scale(1)' },
+                          '50%': { transform: 'scale(1.1)' }
                         }
                       }}
                     >
-                      Recent Exams
-                    </Typography>
+                      <Assessment sx={{ color: 'white', fontSize: '1.8rem' }} />
+                    </Box>
+                    <Box>
+                      <Typography
+                        variant="h5"
+                        fontWeight="bold"
+                        sx={{
+                          fontSize: { xs: '1.3rem', sm: '1.5rem', md: '1.7rem' },
+                          background: `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.success.main})`,
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          backgroundClip: 'text',
+                          position: 'relative',
+                          '&::after': {
+                            content: '""',
+                            position: 'absolute',
+                            bottom: -5,
+                            left: 0,
+                            width: '50%',
+                            height: 3,
+                            background: `linear-gradient(90deg, ${theme.palette.info.main}, ${theme.palette.success.main})`,
+                            borderRadius: 2
+                          }
+                        }}
+                      >
+                        Recent Exams
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Your latest exam activities and progress
+                      </Typography>
+                    </Box>
                   </Box>
                 <Zoom in={true} style={{ transitionDelay: '1300ms' }}>
                   <Card
@@ -1394,24 +2479,25 @@ const Dashboard = () => {
                                   }}
                                 />
 
-                                <Box sx={{ position: 'relative' }}>
+                                <Box sx={{ position: 'relative', overflow: 'hidden' }}>
                                   <CardMedia
                                     component="img"
-                                    height="140"
-                                    image={`https://source.unsplash.com/random/300x200/?exam,education,${exam.title.split(' ')[0]}`}
+                                    height="160"
+                                    image="/exam.jpg"
                                     alt={exam.title}
                                     sx={{
                                       objectFit: 'cover',
                                       objectPosition: 'center',
-                                      transition: 'all 0.5s ease',
-                                      filter: 'brightness(0.85)',
+                                      transition: 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                                      filter: 'brightness(0.9) saturate(1.1)',
                                       '&:hover': {
-                                        filter: 'brightness(1)',
-                                        transform: 'scale(1.05)'
+                                        filter: 'brightness(1.1) saturate(1.2)',
+                                        transform: 'scale(1.08)'
                                       }
                                     }}
                                   />
 
+                                  {/* Enhanced gradient overlay */}
                                   <Box
                                     sx={{
                                       position: 'absolute',
@@ -1419,11 +2505,44 @@ const Dashboard = () => {
                                       left: 0,
                                       width: '100%',
                                       height: '100%',
-                                      background: `linear-gradient(to bottom, transparent 50%, ${alpha(theme.palette.background.paper, 0.9)} 100%)`,
+                                      background: `linear-gradient(135deg,
+                                        transparent 0%,
+                                        ${alpha(theme.palette.background.paper, 0.1)} 30%,
+                                        ${alpha(theme.palette.background.paper, 0.8)} 100%)`,
                                       zIndex: 1
                                     }}
                                   />
 
+                                  {/* Floating particles effect */}
+                                  {[...Array(3)].map((_, i) => (
+                                    <Box
+                                      key={i}
+                                      sx={{
+                                        position: 'absolute',
+                                        width: 6,
+                                        height: 6,
+                                        borderRadius: '50%',
+                                        bgcolor: alpha(
+                                          exam.status === 'completed'
+                                            ? theme.palette.success.main
+                                            : exam.status === 'in-progress'
+                                              ? theme.palette.warning.main
+                                              : theme.palette.primary.main,
+                                          0.6
+                                        ),
+                                        top: `${20 + i * 25}%`,
+                                        left: `${15 + i * 30}%`,
+                                        animation: `examParticle 4s ease-in-out infinite ${i * 0.8}s`,
+                                        '@keyframes examParticle': {
+                                          '0%, 100%': { opacity: 0, transform: 'translateY(0px) scale(0)' },
+                                          '50%': { opacity: 1, transform: 'translateY(-15px) scale(1)' }
+                                        },
+                                        zIndex: 1
+                                      }}
+                                    />
+                                  ))}
+
+                                  {/* Enhanced status chip */}
                                   <Chip
                                     icon={getStatusIcon(exam.status)}
                                     label={exam.status.replace('-', ' ')}
@@ -1435,13 +2554,79 @@ const Dashboard = () => {
                                       right: 12,
                                       textTransform: 'capitalize',
                                       fontWeight: 'bold',
-                                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                      fontSize: '0.75rem',
+                                      boxShadow: `0 4px 12px ${alpha(
+                                        exam.status === 'completed'
+                                          ? theme.palette.success.main
+                                          : exam.status === 'in-progress'
+                                            ? theme.palette.warning.main
+                                            : theme.palette.primary.main,
+                                        0.4
+                                      )}`,
                                       zIndex: 2,
+                                      backdropFilter: 'blur(10px)',
+                                      background: exam.status === 'completed'
+                                        ? `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`
+                                        : exam.status === 'in-progress'
+                                          ? `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})`
+                                          : `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                                      color: 'white',
+                                      border: '1px solid rgba(255,255,255,0.2)',
                                       '& .MuiChip-icon': {
-                                        color: 'inherit'
+                                        color: 'white'
+                                      },
+                                      animation: 'statusGlow 3s ease-in-out infinite alternate',
+                                      '@keyframes statusGlow': {
+                                        '0%': { boxShadow: `0 4px 12px ${alpha(
+                                          exam.status === 'completed'
+                                            ? theme.palette.success.main
+                                            : exam.status === 'in-progress'
+                                              ? theme.palette.warning.main
+                                              : theme.palette.primary.main,
+                                          0.4
+                                        )}` },
+                                        '100%': { boxShadow: `0 6px 20px ${alpha(
+                                          exam.status === 'completed'
+                                            ? theme.palette.success.main
+                                            : exam.status === 'in-progress'
+                                              ? theme.palette.warning.main
+                                              : theme.palette.primary.main,
+                                          0.6
+                                        )}` }
                                       }
                                     }}
                                   />
+
+                                  {/* Difficulty indicator dots */}
+                                  <Box
+                                    sx={{
+                                      position: 'absolute',
+                                      top: 12,
+                                      left: 12,
+                                      display: 'flex',
+                                      gap: 0.5,
+                                      zIndex: 2
+                                    }}
+                                  >
+                                    {[1, 2, 3].map((level) => (
+                                      <Box
+                                        key={level}
+                                        sx={{
+                                          width: 8,
+                                          height: 8,
+                                          borderRadius: '50%',
+                                          bgcolor: level <= (exam.difficulty || 2)
+                                            ? theme.palette.error.main
+                                            : alpha(theme.palette.grey[400], 0.4),
+                                          boxShadow: level <= (exam.difficulty || 2)
+                                            ? `0 0 8px ${alpha(theme.palette.error.main, 0.6)}`
+                                            : 'none',
+                                          backdropFilter: 'blur(5px)',
+                                          border: '1px solid rgba(255,255,255,0.3)'
+                                        }}
+                                      />
+                                    ))}
+                                  </Box>
                                 </Box>
 
                                 <CardContent sx={{ flexGrow: 1, pt: 3, pb: 2, px: 3 }}>
@@ -1636,7 +2821,7 @@ const Dashboard = () => {
                         >
                           <Box
                             component="img"
-                            src="https://img.freepik.com/free-vector/no-data-concept-illustration_114360-536.jpg"
+                            src="/exam.jpg"
                             alt="No exams available"
                             sx={{
                               width: '100%',

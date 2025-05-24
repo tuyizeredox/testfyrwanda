@@ -3,10 +3,11 @@ import axios from 'axios';
 // In Vite, environment variables are accessed via import.meta.env instead of process.env
 // And they need to be prefixed with VITE_ instead of REACT_APP_
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 8000 // 8 seconds default timeout - can be overridden per request
 });
 
 // Add a request interceptor

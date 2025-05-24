@@ -1,11 +1,12 @@
 import axios from 'axios';
 
-// Create an axios instance with default config
+// Create an axios instance with default config optimized for speed
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 8000 // 8 seconds default timeout - reduced for faster feedback
 });
 
 // Add a request interceptor to add auth token to requests

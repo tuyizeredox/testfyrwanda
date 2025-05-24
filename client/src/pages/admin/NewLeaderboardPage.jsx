@@ -42,10 +42,12 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import useApiWithTimeout from '../../hooks/useApiWithTimeout';
 
 const NewLeaderboardPage = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { apiCall, cleanup } = useApiWithTimeout(45000); // 45 second timeout with retries
 
   // State variables
   const [loading, setLoading] = useState(true);
@@ -116,6 +118,15 @@ const NewLeaderboardPage = () => {
     }
   }, [leaderboardData]);
 
+  // Cleanup effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Clear any pending timeouts or abort controllers when component unmounts
+      console.log('NewLeaderboardPage component unmounting, cleaning up...');
+      cleanup();
+    };
+  }, [cleanup]);
+
   // Fetch exams from API
   const fetchExams = async () => {
     setExamsLoading(true);
@@ -143,12 +154,8 @@ const NewLeaderboardPage = () => {
         }
       }
 
-      // Add a timeout to the request to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      const response = await api.get('/admin/exams', { signal: controller.signal });
-      clearTimeout(timeoutId);
+      // Use the custom hook for API call with timeout handling
+      const response = await apiCall('get', '/admin/exams');
 
       if (response.data && Array.isArray(response.data)) {
         const examData = [
@@ -165,7 +172,13 @@ const NewLeaderboardPage = () => {
       }
     } catch (err) {
       console.error('Error fetching exams:', err);
-      // Already set default "All Exams" option above, so no need to handle error case
+
+      // If we don't have cached data, show error
+      if (!localStorage.getItem('cachedExams')) {
+        setError(`Failed to load exams: ${err.message}`);
+      } else {
+        console.log('Using cached exams due to fetch error');
+      }
     } finally {
       setExamsLoading(false);
     }
@@ -178,6 +191,7 @@ const NewLeaderboardPage = () => {
 
     // Check if we have cached data for this exam
     if (dataCache[examId]) {
+      console.log(`Using cached data for exam ${examId}`);
       setLeaderboardData(dataCache[examId]);
       setLoading(false);
       return;
@@ -191,14 +205,14 @@ const NewLeaderboardPage = () => {
         url = `/admin/exams/${examId}/leaderboard`;
       }
 
-      // Add a timeout to the request to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      console.log(`Fetching leaderboard data from: ${url}`);
 
-      const response = await api.get(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
+      // Use the custom hook for API call with timeout handling and retries
+      const response = await apiCall('get', url);
 
       if (response.data && response.data.leaderboard) {
+        console.log(`Successfully fetched leaderboard data for exam ${examId}`);
+
         // Cache the data
         setDataCache(prev => ({
           ...prev,
@@ -211,10 +225,26 @@ const NewLeaderboardPage = () => {
       }
     } catch (err) {
       console.error('Error fetching leaderboard data:', err);
-      setError('Failed to load leaderboard data. Using sample data instead.');
 
-      // Use mock data as fallback
-      setLeaderboardData(mockData.all);
+      // Provide more specific error messages
+      let errorMessage = 'Failed to load leaderboard data.';
+      if (err.message.includes('timed out')) {
+        errorMessage = 'Request timed out. The server may be busy. Please try again.';
+      } else if (err.message.includes('Network error')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (err.response?.status === 404) {
+        errorMessage = 'Leaderboard data not found for this exam.';
+      } else if (err.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+
+      setError(errorMessage);
+
+      // Use mock data as fallback only if no cached data exists
+      if (!dataCache[examId]) {
+        console.log('Using mock data as fallback');
+        setLeaderboardData(mockData.all);
+      }
     } finally {
       setLoading(false);
     }

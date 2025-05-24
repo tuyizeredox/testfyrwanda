@@ -57,6 +57,60 @@ const ResultSchema = new mongoose.Schema({
     isSelected: {
       type: Boolean,
       default: true // By default, all questions are selected
+    },
+    // For matching questions
+    matchingAnswers: [{
+      left: Number,
+      right: Number
+    }],
+    // For ordering questions
+    orderingAnswer: [Number],
+    // For drag-drop questions
+    dragDropAnswer: [{
+      item: Number,
+      zone: Number
+    }],
+    // For multi-part questions
+    subAnswers: [{
+      selectedOption: String,
+      textAnswer: String,
+      isCorrect: Boolean,
+      score: Number
+    }],
+    // Answer metadata
+    timeSpent: {
+      type: Number, // in seconds
+      default: 0
+    },
+    attempts: {
+      type: Number,
+      default: 1
+    },
+    confidence: {
+      type: String,
+      enum: ['low', 'medium', 'high'],
+      default: 'medium'
+    },
+    // Grading method tracking
+    gradingMethod: {
+      type: String,
+      enum: [
+        'enhanced_grading',
+        'semantic_match',
+        'direct_comparison',
+        'keyword_matching',
+        'default_fallback',
+        'background_ai_grading',
+        'manual_grading',
+        'ai_grading',
+        'regrade_ai_grading',
+        'admin_regrade',
+        'ai_assisted',
+        'predefined',
+        'error_fallback',
+        'fallback'
+      ],
+      default: 'enhanced_grading'
     }
   }],
   totalScore: {

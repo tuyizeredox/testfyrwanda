@@ -17,16 +17,16 @@ import api from '../../../services/api';
 const EnableSelectiveAnswering = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
-  
+
   const [formData, setFormData] = useState({
     sectionBRequiredQuestions: 3,
     sectionCRequiredQuestions: 1
   });
-  
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -34,18 +34,18 @@ const EnableSelectiveAnswering = () => {
       [name]: value
     });
   };
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await api.post(`/exam/${id}/enable-selective-answering`, formData);
-      
+
       console.log('Selective answering enabled:', response.data);
       setSuccess(true);
-      
+
       // Navigate back to exam view after a short delay
       setTimeout(() => {
         navigate(`/admin/exams/${id}/view`);
@@ -57,33 +57,33 @@ const EnableSelectiveAnswering = () => {
       setLoading(false);
     }
   };
-  
+
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', mt: 4, p: 2 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Enable Selective Answering
         </Typography>
-        
+
         <Typography variant="body1" paragraph>
           Enabling selective answering allows students to choose which questions they want to answer in Sections B and C.
           You can specify how many questions students must answer in each section.
         </Typography>
-        
+
         <Divider sx={{ my: 3 }} />
-        
+
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
         )}
-        
+
         {success && (
           <Alert severity="success" sx={{ mb: 3 }}>
             Selective answering has been enabled successfully!
           </Alert>
         )}
-        
+
         <form onSubmit={handleSubmit}>
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" gutterBottom>
@@ -101,7 +101,7 @@ const EnableSelectiveAnswering = () => {
               sx={{ mb: 2 }}
             />
           </Box>
-          
+
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" gutterBottom>
               Section C Configuration
@@ -118,7 +118,7 @@ const EnableSelectiveAnswering = () => {
               sx={{ mb: 2 }}
             />
           </Box>
-          
+
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
             <Button
               variant="outlined"
