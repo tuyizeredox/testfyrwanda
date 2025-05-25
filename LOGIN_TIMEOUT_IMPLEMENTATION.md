@@ -135,11 +135,11 @@ if (err.message && err.message.includes('timeout')) {
 
 ## Future Enhancements
 
-1. **Progressive timeout**: Start with 5s, increase for retries
+1. **Progressive timeout**: Start with 20s, increase for retries
 2. **Network quality detection**: Adjust timeout based on connection
 3. **Retry mechanism**: Automatic retry with exponential backoff
 4. **Offline detection**: Handle offline scenarios gracefully
 
 ## Conclusion
 
-The 5-second login timeout implementation successfully balances user experience with security requirements. Users get clear feedback about login progress and timeout situations, while the system maintains robust security features for actual authentication failures.
+The 20-second login timeout implementation successfully balances user experience with security requirements. Users get clear feedback about login progress and timeout situations, while the system maintains robust security features for actual authentication failures.

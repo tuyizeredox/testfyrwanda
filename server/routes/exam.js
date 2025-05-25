@@ -77,7 +77,15 @@ router.post(
   ]),
   createExam
 );
-router.put('/:id', isAdmin, updateExam);
+router.put(
+  '/:id',
+  isAdmin,
+  upload.fields([
+    { name: 'examFile', maxCount: 1 },
+    { name: 'answerFile', maxCount: 1 }
+  ]),
+  updateExam
+);
 router.delete('/:id', isAdmin, deleteExam);
 router.put('/:id/toggle-lock', isAdmin, toggleExamLock);
 router.post('/grade/:resultId', isAdmin, gradeManually);

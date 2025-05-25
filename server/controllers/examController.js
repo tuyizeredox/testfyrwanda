@@ -497,10 +497,14 @@ const getExamById = async (req, res) => {
 // @access  Private/Admin
 const updateExam = async (req, res) => {
   try {
+    console.log('Update exam request body:', req.body);
+    console.log('Update exam request files:', req.files);
+
     const {
       title,
       description,
       timeLimit,
+      passingScore,
       isLocked,
       allowSelectiveAnswering,
       sectionBRequiredQuestions,
@@ -514,10 +518,28 @@ const updateExam = async (req, res) => {
     }
 
     // Update exam fields
-    exam.title = title || exam.title;
-    exam.description = description || exam.description;
-    exam.timeLimit = timeLimit || exam.timeLimit;
-    exam.isLocked = isLocked !== undefined ? isLocked : exam.isLocked;
+    if (title) exam.title = title;
+    if (description) exam.description = description;
+    if (timeLimit) exam.timeLimit = parseInt(timeLimit);
+    if (passingScore !== undefined) exam.passingScore = parseInt(passingScore);
+    if (isLocked !== undefined) {
+      exam.isLocked = isLocked === 'true' || isLocked === true;
+    }
+
+    // Handle file uploads
+    if (req.files) {
+      if (req.files.examFile && req.files.examFile[0]) {
+        const examFile = req.files.examFile[0];
+        exam.originalFile = examFile.path;
+        console.log('Updated exam file:', examFile.path);
+      }
+
+      if (req.files.answerFile && req.files.answerFile[0]) {
+        const answerFile = req.files.answerFile[0];
+        exam.answerFile = answerFile.path;
+        console.log('Updated answer file:', answerFile.path);
+      }
+    }
 
     // Update selective answering fields if provided
     if (allowSelectiveAnswering !== undefined) {

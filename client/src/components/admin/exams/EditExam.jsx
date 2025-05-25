@@ -117,7 +117,7 @@ const EditExam = () => {
     const { name, value, checked } = e.target;
     setExamData({
       ...examData,
-      [name]: name === 'isLocked' ? checked : value
+      [name]: (name === 'isLocked' || name === 'allowSelectiveAnswering') ? checked : value
     });
 
     // Clear error for this field
@@ -588,7 +588,7 @@ const EditExam = () => {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={examData.isLocked}
+                    checked={Boolean(examData.isLocked)}
                     onChange={handleChange}
                     name="isLocked"
                     color="primary"
@@ -613,7 +613,7 @@ const EditExam = () => {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={examData.allowSelectiveAnswering}
+                    checked={Boolean(examData.allowSelectiveAnswering)}
                     onChange={handleChange}
                     name="allowSelectiveAnswering"
                     color="primary"
