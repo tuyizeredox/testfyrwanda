@@ -7,69 +7,77 @@ const geminiClient = require('./geminiClient');
  */
 const SEMANTIC_MAPPINGS = {
   // Network terms
-  'wan': ['wide area network', 'wide-area network'],
-  'lan': ['local area network', 'local-area network'],
-  'man': ['metropolitan area network', 'metropolitan-area network'],
-  'pan': ['personal area network', 'personal-area network'],
-  'vpn': ['virtual private network', 'virtual-private network'],
-  'dns': ['domain name system', 'domain name service'],
-  'dhcp': ['dynamic host configuration protocol'],
-  'tcp': ['transmission control protocol'],
-  'udp': ['user datagram protocol'],
-  'ip': ['internet protocol'],
-  'http': ['hypertext transfer protocol', 'hyper text transfer protocol'],
+  'wan': ['wide area network', 'wide-area network', 'wide area networks', 'wide-area networks'],
+  'lan': ['local area network', 'local-area network', 'local area networks', 'local-area networks'],
+  'man': ['metropolitan area network', 'metropolitan-area network', 'metropolitan area networks'],
+  'pan': ['personal area network', 'personal-area network', 'personal area networks'],
+  'vpn': ['virtual private network', 'virtual-private network', 'virtual private networks'],
+  'dns': ['domain name system', 'domain name service', 'domain name systems'],
+  'dhcp': ['dynamic host configuration protocol', 'dynamic host config protocol'],
+  'tcp': ['transmission control protocol', 'transmission control protocols'],
+  'udp': ['user datagram protocol', 'user datagram protocols'],
+  'ip': ['internet protocol', 'internet protocols'],
+  'http': ['hypertext transfer protocol', 'hyper text transfer protocol', 'hypertext transfer protocols'],
   'https': ['hypertext transfer protocol secure', 'hyper text transfer protocol secure'],
-  'ftp': ['file transfer protocol'],
-  'smtp': ['simple mail transfer protocol'],
-  'pop3': ['post office protocol version 3', 'post office protocol 3'],
-  'imap': ['internet message access protocol'],
+  'ftp': ['file transfer protocol', 'file transfer protocols'],
+  'smtp': ['simple mail transfer protocol', 'simple mail transfer protocols'],
+  'pop3': ['post office protocol 3', 'post office protocol version 3'],
+  'imap': ['internet message access protocol', 'internet mail access protocol'],
 
-  // Hardware terms
+  // Computer hardware terms
   'cpu': ['central processing unit', 'central processor unit', 'processor'],
-  'gpu': ['graphics processing unit', 'graphics processor unit'],
-  'ram': ['random access memory'],
+  'gpu': ['graphics processing unit', 'graphics processor unit', 'graphics card'],
+  'ram': ['random access memory', 'random-access memory', 'memory'],
   'rom': ['read only memory', 'read-only memory'],
-  'hdd': ['hard disk drive', 'hard drive'],
+  'hdd': ['hard disk drive', 'hard drive', 'hard disk'],
   'ssd': ['solid state drive', 'solid-state drive'],
-  'usb': ['universal serial bus'],
-  'pci': ['peripheral component interconnect'],
-  'sata': ['serial advanced technology attachment', 'serial ata'],
-  'ide': ['integrated drive electronics'],
+  'usb': ['universal serial bus', 'universal-serial bus'],
+  'pci': ['peripheral component interconnect', 'peripheral-component interconnect'],
   'bios': ['basic input output system', 'basic input/output system'],
-  'uefi': ['unified extensible firmware interface'],
+  'uefi': ['unified extensible firmware interface', 'unified-extensible firmware interface'],
 
   // Software terms
-  'os': ['operating system'],
-  'gui': ['graphical user interface'],
+  'os': ['operating system', 'operating systems'],
+  'gui': ['graphical user interface', 'graphical-user interface'],
   'cli': ['command line interface', 'command-line interface'],
-  'api': ['application programming interface'],
-  'sdk': ['software development kit'],
-  'ide': ['integrated development environment'],
-  'sql': ['structured query language'],
+  'api': ['application programming interface', 'application-programming interface'],
+  'sql': ['structured query language', 'structured-query language'],
   'html': ['hypertext markup language', 'hyper text markup language'],
-  'css': ['cascading style sheets'],
-  'xml': ['extensible markup language'],
-  'json': ['javascript object notation'],
-  'ajax': ['asynchronous javascript and xml'],
-
-  // Database terms
-  'dbms': ['database management system'],
-  'rdbms': ['relational database management system'],
-  'crud': ['create read update delete', 'create, read, update, delete'],
-  'acid': ['atomicity consistency isolation durability'],
+  'css': ['cascading style sheets', 'cascading-style sheets'],
+  'xml': ['extensible markup language', 'extensible-markup language'],
+  'json': ['javascript object notation', 'javascript-object notation'],
 
   // Security terms
-  'ssl': ['secure sockets layer', 'secure socket layer'],
-  'tls': ['transport layer security'],
-  'aes': ['advanced encryption standard'],
-  'rsa': ['rivest shamir adleman'],
-  'md5': ['message digest 5'],
-  'sha': ['secure hash algorithm'],
+  'ssl': ['secure sockets layer', 'secure-sockets layer'],
+  'tls': ['transport layer security', 'transport-layer security'],
+  'vpn': ['virtual private network', 'virtual-private network'],
+  'firewall': ['network firewall', 'security firewall'],
+  'antivirus': ['anti virus', 'anti-virus', 'virus protection'],
+  'malware': ['malicious software', 'malicious-software'],
 
-  // Storage terms
-  'raid': ['redundant array of independent disks', 'redundant array of inexpensive disks'],
-  'nas': ['network attached storage', 'network-attached storage'],
-  'san': ['storage area network', 'storage-area network']
+  // Database terms
+  'dbms': ['database management system', 'database-management system'],
+  'rdbms': ['relational database management system', 'relational-database management system'],
+  'nosql': ['not only sql', 'not-only sql', 'non sql', 'non-sql'],
+
+  // Programming terms
+  'oop': ['object oriented programming', 'object-oriented programming'],
+  'ide': ['integrated development environment', 'integrated-development environment'],
+  'sdk': ['software development kit', 'software-development kit'],
+
+  // Common abbreviations and their expansions
+  'www': ['world wide web', 'world-wide web'],
+  'url': ['uniform resource locator', 'uniform-resource locator'],
+  'uri': ['uniform resource identifier', 'uniform-resource identifier'],
+  'isp': ['internet service provider', 'internet-service provider'],
+  'wifi': ['wireless fidelity', 'wireless-fidelity', 'wi-fi'],
+  'bluetooth': ['blue tooth', 'blue-tooth'],
+
+  // True/False equivalents
+  'true': ['yes', 'correct', 'right', 'valid', 'accurate'],
+  'false': ['no', 'incorrect', 'wrong', 'invalid', 'inaccurate'],
+  'yes': ['true', 'correct', 'right', 'valid'],
+  'no': ['false', 'incorrect', 'wrong', 'invalid']
 };
 
 /**
@@ -146,13 +154,36 @@ const gradeQuestionByType = async (question, answer, modelAnswer = '') => {
         return gradeDragDrop(question, answer);
 
       case 'open-ended':
-        return gradeOpenEndedAnswer(
+        console.log(`🤖 AI grading open-ended question ${question._id} in section ${question.section}`);
+
+        // Enhanced AI grading for sections B and C with optimized processing
+        const sectionType = question.section === 'C' ? 'essay/long-answer' : 'short-answer';
+        console.log(`📝 Processing ${sectionType} question in section ${question.section}`);
+
+        const openEndedResult = await gradeOpenEndedAnswer(
           answer.textAnswer || '',
           modelAnswer || question.correctAnswer,
           question.points,
           question.text,
-          question.type
+          question.type,
+          question.section // Pass section for optimized grading
         );
+
+        // Enhance the result with section information and better feedback
+        return {
+          ...openEndedResult,
+          details: {
+            ...openEndedResult.details,
+            section: question.section,
+            sectionType: sectionType,
+            questionType: 'open-ended',
+            aiGraded: true,
+            gradingMethod: `enhanced_ai_grading_section_${question.section}`,
+            processingOptimized: true
+          },
+          // Ensure we have a proper corrected answer
+          correctedAnswer: openEndedResult.correctedAnswer || modelAnswer || question.correctAnswer || 'Model answer not available'
+        };
 
       default:
         console.warn(`Unknown question type: ${question.type}`);
@@ -173,7 +204,7 @@ const gradeQuestionByType = async (question, answer, modelAnswer = '') => {
 };
 
 /**
- * Grade multiple choice questions with enhanced detection
+ * Grade multiple choice questions with enhanced AI detection
  */
 const gradeMultipleChoice = async (question, answer, modelAnswer) => {
   try {
@@ -181,6 +212,7 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
 
     // Extract the selected option, handling various formats
     let selectedOption = answer.selectedOption || answer.selectedOptionLetter || answer.textAnswer || '';
+    let selectedOptionLetter = answer.selectedOptionLetter || '';
 
     // Handle case where answer might be in object format
     if (typeof selectedOption === 'object') {
@@ -190,6 +222,7 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
     }
 
     console.log(`Selected option: "${selectedOption}"`);
+    console.log(`Selected option letter: "${selectedOptionLetter}"`);
 
     if (!selectedOption) {
       return {
@@ -213,12 +246,28 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
         };
       }
 
-      // Enhanced semantic matching for direct comparison
-      let isCorrect = selectedOption.toLowerCase().trim() === modelAnswer.toLowerCase().trim();
+      // Enhanced AI-based comparison for direct comparison
+      let isCorrect = false;
 
-      // If not exact match, check semantic equivalence
-      if (!isCorrect) {
-        isCorrect = areSemanticallySimilar(selectedOption, modelAnswer);
+      try {
+        // Use AI to compare the student answer with the model answer
+        isCorrect = await checkAnswerWithAI(
+          question.text,
+          selectedOption,
+          modelAnswer,
+          'multiple-choice'
+        );
+        console.log(`AI direct comparison result: ${isCorrect}`);
+      } catch (aiError) {
+        console.error('AI comparison failed, falling back to semantic matching:', aiError);
+
+        // Fallback to semantic matching
+        isCorrect = selectedOption.toLowerCase().trim() === modelAnswer.toLowerCase().trim();
+
+        // If not exact match, check semantic equivalence
+        if (!isCorrect) {
+          isCorrect = areSemanticallySimilar(selectedOption, modelAnswer);
+        }
       }
 
       const score = isCorrect ? (question.points || 1) : 0;
@@ -244,20 +293,34 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
     let correctOption = null;
     let isCorrect = false;
 
-    // Find the selected option in the question
-    const option = question.options.find(opt => {
-      const optLetter = String(opt.letter || '').trim().toLowerCase();
-      const optText = String(opt.text || '').trim().toLowerCase();
-      const optId = String(opt._id || '').trim();
-      const selected = selectedOption.toLowerCase();
+    // Find the selected option in the question with enhanced matching
+    let option = null;
 
-      return optLetter === selected ||
-             optText === selected ||
-             optId === selected ||
-             optLetter === selected.charAt(0) || // Handle single letter selection
-             selected.includes(optLetter) ||
-             selected.includes(optText);
-    });
+    // First try to match by letter if we have selectedOptionLetter
+    if (selectedOptionLetter) {
+      option = question.options.find(opt =>
+        opt.letter && opt.letter.toUpperCase() === selectedOptionLetter.toUpperCase()
+      );
+      console.log(`Matched by letter "${selectedOptionLetter}":`, option ? `${option.letter}. ${option.text}` : 'Not found');
+    }
+
+    // If not found by letter, try other matching methods
+    if (!option) {
+      option = question.options.find(opt => {
+        const optLetter = String(opt.letter || '').trim().toLowerCase();
+        const optText = String(opt.text || '').trim().toLowerCase();
+        const optId = String(opt._id || '').trim();
+        const selected = selectedOption.toLowerCase();
+
+        return optLetter === selected ||
+               optText === selected ||
+               optId === selected ||
+               optLetter === selected.charAt(0) || // Handle single letter selection
+               selected.includes(optLetter) ||
+               selected.includes(optText);
+      });
+      console.log(`Matched by text/content:`, option ? `${option.letter}. ${option.text}` : 'Not found');
+    }
 
     // First, try to find the correct option from the question's options
     correctOption = question.options.find(opt => opt.isCorrect);
@@ -278,11 +341,33 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
       }
     }
 
-    // Determine if the selected option is correct
-    if (correctOption && option) {
-      isCorrect = option.letter === correctOption.letter ||
-                 option.text === correctOption.text ||
-                 option._id === correctOption._id;
+    // Use AI to determine correctness with complete information
+    if (option && correctOption) {
+      // Prepare detailed information for AI grading
+      const studentAnswerForAI = `${option.letter}. ${option.text}`;
+      const correctAnswerForAI = `${correctOption.letter}. ${correctOption.text}`;
+
+      console.log(`AI Grading Input:`);
+      console.log(`- Question: ${question.text}`);
+      console.log(`- Student selected: ${studentAnswerForAI}`);
+      console.log(`- Correct answer: ${correctAnswerForAI}`);
+
+      try {
+        // Use AI to compare the answers with full context
+        isCorrect = await checkAnswerWithAI(
+          question.text,
+          studentAnswerForAI,
+          correctAnswerForAI,
+          'multiple-choice'
+        );
+        console.log(`AI determined correctness: ${isCorrect}`);
+      } catch (aiError) {
+        console.error('AI grading failed, falling back to direct comparison:', aiError);
+        // Fallback to direct comparison
+        isCorrect = option.letter === correctOption.letter ||
+                   option.text === correctOption.text ||
+                   option._id === correctOption._id;
+      }
     } else if (option) {
       // Check if the selected option is marked as correct
       isCorrect = option.isCorrect === true;
@@ -296,6 +381,21 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
       isCorrect = selectedLower === correctText ||
                  selectedLower === correctLetter ||
                  selectedLower === correctLetter.toUpperCase();
+    } else {
+      // Last resort: use AI with available information
+      try {
+        const studentAnswerForAI = option ? `${option.letter}. ${option.text}` : selectedOption;
+        isCorrect = await checkAnswerWithAI(
+          question.text,
+          studentAnswerForAI,
+          modelAnswer || 'No model answer available',
+          'multiple-choice'
+        );
+        console.log(`AI fallback grading result: ${isCorrect}`);
+      } catch (aiError) {
+        console.error('AI fallback grading failed:', aiError);
+        isCorrect = false;
+      }
     }
 
     const score = isCorrect ? (question.points || 1) : 0;
@@ -319,21 +419,40 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
       selectedAnswerDisplay = selectedOption;
     }
 
-    const feedback = isCorrect
-      ? `Correct! You selected: ${selectedAnswerDisplay}`
-      : `Incorrect. You selected: ${selectedAnswerDisplay}. The correct answer is: ${correctAnswerDisplay}`;
+    // Enhanced feedback with AI reasoning
+    let feedback = '';
+    if (isCorrect) {
+      feedback = `✅ Correct! You selected: ${selectedAnswerDisplay}`;
+      if (option && correctOption && option.letter === correctOption.letter) {
+        feedback += ` - This is the right answer.`;
+      }
+    } else {
+      feedback = `❌ Incorrect. You selected: ${selectedAnswerDisplay}. The correct answer is: ${correctAnswerDisplay}`;
+      if (option && correctOption) {
+        feedback += ` - You chose option ${option.letter} but the correct option is ${correctOption.letter}.`;
+      }
+    }
+
+    console.log(`Multiple choice grading result:`);
+    console.log(`- Selected: ${selectedAnswerDisplay}`);
+    console.log(`- Correct: ${correctAnswerDisplay}`);
+    console.log(`- Score: ${score}/${question.points || 1}`);
+    console.log(`- AI graded: ${isCorrect}`);
 
     return {
       score,
       feedback,
       correctedAnswer: correctAnswerDisplay,
       details: {
-        selectedOption: option ? option.letter : selectedOption,
+        selectedOption: option ? option.letter : selectedOptionLetter || selectedOption,
         selectedText: option ? option.text : selectedOption,
-        correctOption: correctAnswerDisplay,
+        selectedFull: selectedAnswerDisplay,
+        correctOption: correctOption ? correctOption.letter : 'Unknown',
+        correctText: correctOption ? correctOption.text : modelAnswer,
+        correctFull: correctAnswerDisplay,
         isCorrect,
         answerType: 'multiple_choice',
-        gradingMethod: 'predefined'
+        gradingMethod: 'ai_assisted'
       }
     };
   } catch (error) {
@@ -687,9 +806,34 @@ const checkAnswerWithAI = async (questionText, studentAnswer, modelAnswer, quest
       return false;
     }
 
-    const model = geminiClient.getModel('gemini-1.5-flash');
+    let prompt = '';
 
-    const prompt = `
+    if (questionType === 'multiple-choice') {
+      prompt = `
+Determine if the student's answer is correct for this multiple-choice question.
+
+Question: ${cleanQuestionText}
+Correct Answer: ${cleanModelAnswer}
+Student Answer: ${cleanStudentAnswer}
+
+MULTIPLE CHOICE GRADING RULES:
+1. If the student answer contains the same letter (A, B, C, D) as the correct answer, it's CORRECT
+2. If the student answer contains the same text content as the correct answer, it's CORRECT
+3. If the student selected "A. Option Text" and the correct answer is "A. Option Text", it's CORRECT
+4. If the student selected "Option Text" and the correct answer is "A. Option Text", it's CORRECT
+5. Case doesn't matter: "a" = "A", "option text" = "Option Text"
+6. Consider semantic equivalence: "WAN" = "Wide Area Network", "CPU" = "Central Processing Unit"
+
+EXAMPLES:
+- Student: "A. Proteus", Correct: "A. Proteus" → CORRECT
+- Student: "Proteus", Correct: "A. Proteus" → CORRECT
+- Student: "A", Correct: "A. Proteus" → CORRECT
+- Student: "B. AutoCAD", Correct: "A. Proteus" → INCORRECT
+
+Respond with only "true" if the student answer is correct, or "false" if incorrect.
+`;
+    } else {
+      prompt = `
 Determine if the student's answer is semantically equivalent to the model answer for this ${questionType} question.
 
 Question: ${cleanQuestionText}
@@ -707,11 +851,15 @@ IMPORTANT: If the student answer is an abbreviation, expansion, or synonym of th
 
 Respond with only "true" if the answers are semantically equivalent, or "false" if they are different concepts.
 `;
+    }
 
-    const result = await model.generateContent(prompt);
-    const response = result.response.text().trim().toLowerCase();
+    // Use the enhanced generateContent function
+    const response = await geminiClient.generateContent(prompt);
 
-    return response === 'true';
+    // The generateContent function already returns processed text
+    const responseText = response.text.trim().toLowerCase();
+
+    return responseText === 'true';
   } catch (error) {
     console.error('Error checking answer with AI:', error);
     // Enhanced semantic fallback comparison

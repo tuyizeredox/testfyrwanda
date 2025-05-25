@@ -433,12 +433,12 @@ const ExamResult = () => {
                           </Alert>
                         )}
 
-                        {/* AI Grading Details - for open-ended questions */}
+                        {/* Enhanced AI Grading Details - for open-ended questions (Sections B & C) */}
                         {(question.type === 'open-ended' || question.type === 'fill-in-blank') && answer?.score !== undefined && (
-                          <Box sx={{ mt: 2, mb: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 1, border: '1px dashed', borderColor: alpha(theme.palette.primary.main, 0.2) }}>
-                            <Typography variant="subtitle2" color="primary.main" gutterBottom>
-                              <Psychology sx={{ fontSize: '1rem', verticalAlign: 'middle', mr: 1 }} />
-                              AI Grading Analysis
+                          <Box sx={{ mt: 2, mb: 2, p: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.2) }}>
+                            <Typography variant="subtitle1" color="primary.main" gutterBottom sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                              <Psychology sx={{ fontSize: '1.2rem', mr: 1 }} />
+                              🤖 AI Grading Analysis for Section {question.section}
                             </Typography>
 
                             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
@@ -503,6 +503,59 @@ const ExamResult = () => {
                                     />
                                   ))}
                                 </Box>
+                              </Box>
+                            )}
+
+                            {/* Enhanced AI Feedback for Sections B & C */}
+                            {answer.feedback && (question.section === 'B' || question.section === 'C') && (
+                              <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.info.main, 0.05), borderRadius: 1, border: '1px solid', borderColor: alpha(theme.palette.info.main, 0.2) }}>
+                                <Typography variant="subtitle2" color="info.main" gutterBottom sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                                  <Psychology sx={{ fontSize: '1rem', mr: 1 }} />
+                                  AI Detailed Feedback
+                                </Typography>
+                                <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                                  {answer.feedback}
+                                </Typography>
+                              </Box>
+                            )}
+
+                            {/* Model Answer Display for Sections B & C */}
+                            {answer.correctedAnswer && (question.section === 'B' || question.section === 'C') && (
+                              <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.success.main, 0.05), borderRadius: 1, border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.2) }}>
+                                <Typography variant="subtitle2" color="success.main" gutterBottom sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                                  <CheckCircle sx={{ fontSize: '1rem', mr: 1 }} />
+                                  Model Answer
+                                </Typography>
+                                <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', fontStyle: 'italic' }}>
+                                  {answer.correctedAnswer}
+                                </Typography>
+                              </Box>
+                            )}
+
+                            {/* AI Grading Method Indicator */}
+                            {answer.gradingMethod && (question.section === 'B' || question.section === 'C') && (
+                              <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip
+                                  size="small"
+                                  label={
+                                    answer.gradingMethod === 'enhanced_ai' || answer.gradingMethod === 'enhanced_ai_grading' ? 'AI Graded' :
+                                    answer.gradingMethod === 'semantic_match' ? 'AI + Semantic Analysis' :
+                                    answer.gradingMethod === 'keyword_matching' ? 'Keyword Analysis' :
+                                    'Automated Grading'
+                                  }
+                                  color={
+                                    answer.gradingMethod === 'enhanced_ai' || answer.gradingMethod === 'enhanced_ai_grading' ? 'primary' :
+                                    answer.gradingMethod === 'semantic_match' ? 'secondary' :
+                                    'default'
+                                  }
+                                  variant="outlined"
+                                  icon={<Psychology />}
+                                />
+                                {answer.gradingMethod === 'enhanced_ai' || answer.gradingMethod === 'enhanced_ai_grading' ? (
+                                  <Typography variant="caption" color="text.secondary">
+                                    Graded using advanced AI analysis
+                                  </Typography>
+                                ) : null}
                               </Box>
                             )}
                           </Box>

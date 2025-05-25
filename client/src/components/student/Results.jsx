@@ -176,8 +176,10 @@ const Results = () => {
       setDetailLoading(true);
       console.log('Fetching detailed result for ID:', id);
 
-      // Fixed API endpoint
-      const res = await api.get(`/student/results/${id}`);
+      // Fixed API endpoint with extended timeout for detailed results
+      const res = await api.get(`/student/results/${id}`, {
+        timeout: 30000 // 30 seconds timeout for detailed results with AI processing
+      });
       console.log('Detailed result data received:', res.data);
 
       if (!res.data) {
@@ -190,13 +192,27 @@ const Results = () => {
     } catch (err) {
       console.error('Error fetching detailed result:', err);
       console.error('Error details:', err.response?.data || err.message);
-      setError('Failed to load detailed result. Please try again later.');
+
+      let errorMessage = 'Failed to load detailed result. Please try again later.';
+
+      // Handle specific error types
+      if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        errorMessage = 'Request timed out. The result is taking longer than expected to load. Please try again.';
+      } else if (err.response?.status === 408) {
+        errorMessage = 'The request timed out due to heavy processing. Please try again in a moment.';
+      } else if (err.response?.data?.timeout) {
+        errorMessage = `Request timed out after ${Math.round((err.response.data.duration || 30000) / 1000)} seconds. Please try again.`;
+      } else if (err.response?.status === 404) {
+        errorMessage = 'Result not found or not accessible.';
+      }
+
+      setError(errorMessage);
       setDetailLoading(false);
 
       // Navigate back to results list after a delay if there's an error
       setTimeout(() => {
         navigate('/student/results');
-      }, 3000);
+      }, 5000); // Increased delay for timeout errors
     }
   };
 
@@ -307,8 +323,17 @@ const Results = () => {
           </Slide>
 
           <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-            Please wait while we fetch your exam performance data
+            {detailLoading
+              ? 'Loading detailed results with AI analysis...'
+              : 'Please wait while we fetch your exam performance data'
+            }
           </Typography>
+
+          {detailLoading && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, fontStyle: 'italic' }}>
+              This may take up to 30 seconds for results with AI grading
+            </Typography>
+          )}
         </Container>
       </StudentLayout>
     );

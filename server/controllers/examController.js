@@ -918,7 +918,7 @@ const startExam = async (req, res) => {
       sectionCRequired: exam.sectionCRequiredQuestions || 1
     });
 
-    // Create a new result
+    // Create a new result with proper selection initialization
     const result = await Result.create({
       student: req.user._id,
       exam: exam._id,
@@ -927,25 +927,24 @@ const startExam = async (req, res) => {
       answers: allQuestions.map((question) => {
         let isSelected = true; // Default to selected for all questions
 
-        // For selective answering, initialize section B and C questions based on required count
+        // For selective answering, auto-select the required number of questions in each section
         if (exam.allowSelectiveAnswering && (question.section === 'B' || question.section === 'C')) {
-          // Get required questions count for this section
+          // Get questions in this section and sort them for consistency
+          const sectionQuestions = questionsBySection[question.section];
+          const sortedSectionQuestions = [...sectionQuestions].sort((a, b) => a._id.toString().localeCompare(b._id.toString()));
+
+          // Get required count for this section
           const requiredCount = question.section === 'B'
             ? (exam.sectionBRequiredQuestions || 3)
             : (exam.sectionCRequiredQuestions || 1);
 
-          // Get the index of this question within its section (sorted by _id for consistency)
-          const sectionQuestions = questionsBySection[question.section].sort((a, b) =>
-            a._id.toString().localeCompare(b._id.toString())
-          );
-          const questionIndexInSection = sectionQuestions.findIndex(q =>
-            q._id.toString() === question._id.toString()
-          );
+          // Find the index of this question in its sorted section
+          const questionIndexInSection = sortedSectionQuestions.findIndex(q => q._id.toString() === question._id.toString());
 
-          // Select only the first N questions by default (where N is the required count)
+          // Auto-select the first N questions in each section
           isSelected = questionIndexInSection < requiredCount;
 
-          console.log(`Initializing question ${question._id} in section ${question.section}: index ${questionIndexInSection}/${sectionQuestions.length}, required ${requiredCount}, selected: ${isSelected}`);
+          console.log(`Question ${question._id} in section ${question.section}: index ${questionIndexInSection}/${sortedSectionQuestions.length}, required ${requiredCount}, selected: ${isSelected}`);
         }
 
         return {
@@ -1103,220 +1102,53 @@ const submitAnswer = async (req, res) => {
       // Find the selected option object - try different matching strategies
       let selectedOptionObj = null;
 
-      // First try exact match
+      // First try exact match by text
       selectedOptionObj = question.options.find(opt => opt.text === selectedOption);
 
-      // If no match, try case-insensitive match
+      // If not found, try case-insensitive match
       if (!selectedOptionObj) {
         selectedOptionObj = question.options.find(opt =>
-          opt.text.toLowerCase() === selectedOption.toLowerCase()
+          opt.text && opt.text.toLowerCase().trim() === selectedOption.toLowerCase().trim()
         );
       }
 
-      // If still no match, try partial matches
+      // If still not found, try partial match
       if (!selectedOptionObj) {
-        // Try to find the option that best matches the selected text
-        let bestMatch = null;
-        let bestMatchScore = 0;
-
-        for (const opt of question.options) {
-          // Check if the option text contains the selected text or vice versa
-          if (opt.text.includes(selectedOption) || selectedOption.includes(opt.text)) {
-            // Calculate a simple match score based on the length of the common substring
-            const matchScore = Math.min(opt.text.length, selectedOption.length);
-            if (matchScore > bestMatchScore) {
-              bestMatchScore = matchScore;
-              bestMatch = opt;
-            }
-          }
-        }
-
-        selectedOptionObj = bestMatch;
-      }
-
-      // Log the selected option for debugging
-      console.log(`Selected option: "${selectedOption}"`);
-      console.log(`Matched with option: ${selectedOptionObj ? selectedOptionObj.text : 'None'}`);
-
-      // Try to extract the letter from the selected option text if no match found
-      let selectedOptionLetter = '';
-      if (!selectedOptionObj && selectedOption) {
-        // Check if the selectedOption is already just a letter
-        if (selectedOption.match(/^[A-D]$/i)) {
-          selectedOptionLetter = selectedOption.toUpperCase();
-          console.log(`Detected letter format: ${selectedOptionLetter}`);
-        }
-        // If the selected option starts with a letter followed by a period or parenthesis
-        else if (selectedOption.match(/^([A-D])[\.\)]/i)) {
-          const letterMatch = selectedOption.match(/^([A-D])[\.\)]/i);
-          selectedOptionLetter = letterMatch[1].toUpperCase();
-          console.log(`Detected letter with punctuation: ${selectedOptionLetter}`);
-        }
-        // Check if the option contains a letter in parentheses or with a period
-        else if (selectedOption.match(/\(([A-D])\)|\s([A-D])\./i)) {
-          const letterMatch = selectedOption.match(/\(([A-D])\)|\s([A-D])\./i);
-          selectedOptionLetter = (letterMatch[1] || letterMatch[2]).toUpperCase();
-          console.log(`Detected embedded letter: ${selectedOptionLetter}`);
-        }
-
-        // If we found a letter, try to find the corresponding option
-        if (selectedOptionLetter) {
-          selectedOptionObj = question.options.find(opt =>
-            opt.letter && opt.letter.toUpperCase() === selectedOptionLetter
-          );
-          console.log(`Found option by letter ${selectedOptionLetter}: ${selectedOptionObj ? selectedOptionObj.text : 'None'}`);
-        }
-      }
-
-      // Get the correct answer from the question's correctAnswer field if available
-      if (question.correctAnswer && question.correctAnswer !== 'Not provided') {
-        correctOptionText = question.correctAnswer;
-
-        // Try to find the option that matches the correctAnswer
-        const matchingOption = question.options.find(opt =>
-          opt.text === question.correctAnswer ||
-          opt.text.toLowerCase() === question.correctAnswer.toLowerCase()
+        selectedOptionObj = question.options.find(opt =>
+          opt.text && (
+            opt.text.toLowerCase().includes(selectedOption.toLowerCase()) ||
+            selectedOption.toLowerCase().includes(opt.text.toLowerCase())
+          )
         );
-
-        if (matchingOption) {
-          correctOptionLetter = matchingOption.letter;
-
-          // Check if selected option matches the correct answer
-          // First check by text
-          if (selectedOption === question.correctAnswer ||
-              selectedOption.toLowerCase() === question.correctAnswer.toLowerCase()) {
-            isCorrect = true;
-          }
-          // Then check by option object
-          else if (selectedOptionObj &&
-                  (selectedOptionObj._id.toString() === matchingOption._id.toString() ||
-                   selectedOptionObj.text === matchingOption.text ||
-                   selectedOptionObj.text.toLowerCase() === matchingOption.text.toLowerCase())) {
-            isCorrect = true;
-          }
-          // Finally check by letter
-          else if (result.answers[answerIndex].selectedOptionLetter &&
-                   result.answers[answerIndex].selectedOptionLetter.toUpperCase() === matchingOption.letter.toUpperCase()) {
-            isCorrect = true;
-          }
-        }
-      }
-      // If no correctAnswer field, use the option marked as correct
-      else if (correctOption) {
-        correctOptionText = correctOption.text;
-        correctOptionLetter = correctOption.letter;
-
-        // Determine if the answer is correct by comparing with the correct option
-        // First check by option object
-        if (selectedOptionObj &&
-           (selectedOptionObj._id.toString() === correctOption._id.toString() ||
-            selectedOptionObj.text === correctOption.text ||
-            selectedOptionObj.text.toLowerCase() === correctOption.text.toLowerCase())) {
-          isCorrect = true;
-        }
-        // Then check by text
-        else if (selectedOption === correctOption.text ||
-                selectedOption.toLowerCase() === correctOption.text.toLowerCase()) {
-          isCorrect = true;
-        }
-        // Finally check by letter
-        else if (result.answers[answerIndex].selectedOptionLetter &&
-                result.answers[answerIndex].selectedOptionLetter.toUpperCase() === correctOption.letter.toUpperCase()) {
-          isCorrect = true;
-        }
-      }
-      // Special case for computer science questions
-      else if (question.text.includes('arithmetic') && question.text.includes('logic operations')) {
-        // ALU is the correct answer for this specific question
-        correctOptionText = 'Arithmetic Logic Unit (ALU)';
-
-        // Find the option with ALU
-        const aluOption = question.options.find(opt =>
-          opt.text.includes('Arithmetic Logic Unit') || opt.text.includes('ALU')
-        );
-
-        if (aluOption) {
-          correctOptionLetter = aluOption.letter;
-        }
-
-        // Check if the selected option contains ALU
-        if (selectedOption && (selectedOption.includes('Arithmetic Logic Unit') || selectedOption.includes('ALU'))) {
-          isCorrect = true;
-        }
-        // Check if the selected option object is the ALU option
-        else if (selectedOptionObj && aluOption &&
-                (selectedOptionObj._id.toString() === aluOption._id.toString() ||
-                 selectedOptionObj.text === aluOption.text ||
-                 selectedOptionObj.text.toLowerCase() === aluOption.text.toLowerCase())) {
-          isCorrect = true;
-        }
-        // Check by letter
-        else if (result.answers[answerIndex].selectedOptionLetter && aluOption &&
-                result.answers[answerIndex].selectedOptionLetter.toUpperCase() === aluOption.letter.toUpperCase()) {
-          isCorrect = true;
-        }
-      }
-      // Fallback to the first option if nothing else works
-      else if (question.options.length > 0) {
-        const fallbackOption = question.options[0];
-        correctOptionText = fallbackOption.text;
-        correctOptionLetter = fallbackOption.letter;
-
-        // In this case, we don't know what's correct, so we'll accept any answer
-        console.warn(`Warning: Could not determine correct answer for question ${question._id}. Accepting any answer.`);
-        isCorrect = true;
       }
 
-      // Log the correctness determination
-      console.log(`Correct option: ${correctOptionText} (${correctOptionLetter || 'unknown letter'})`);
-      console.log(`Is correct: ${isCorrect}`);
-
-
-      // Store the selected option text
+      // Store the selected option information
       result.answers[answerIndex].selectedOption = cleanSelectedOption;
+      result.answers[answerIndex].selectedOptionLetter = selectedOptionObj?.letter || '';
 
-      // Also store the option letter for better display in results
-      // First try to use the letter from the selectedOptionObj
-      if (selectedOptionObj && selectedOptionObj.letter) {
-        result.answers[answerIndex].selectedOptionLetter = selectedOptionObj.letter;
-      }
-      // If we extracted a letter directly from the selected option text, use that
-      else if (selectedOptionLetter) {
-        result.answers[answerIndex].selectedOptionLetter = selectedOptionLetter;
-      }
-      // As a last resort, try to extract a letter from the selected option text
-      else if (selectedOption) {
-        // Check if the selectedOption is already just a letter
-        if (selectedOption.match(/^[A-D]$/i)) {
-          result.answers[answerIndex].selectedOptionLetter = selectedOption.toUpperCase();
-        }
-        // If the selected option starts with a letter followed by a period or parenthesis
-        else if (selectedOption.match(/^([A-D])[\.\)]/i)) {
-          const letterMatch = selectedOption.match(/^([A-D])[\.\)]/i);
-          result.answers[answerIndex].selectedOptionLetter = letterMatch[1].toUpperCase();
-        }
-        // Check if the option contains a letter in parentheses or with a period
-        else if (selectedOption.match(/\(([A-D])\)|\s([A-D])\./i)) {
-          const letterMatch = selectedOption.match(/\(([A-D])\)|\s([A-D])\./i);
-          result.answers[answerIndex].selectedOptionLetter = (letterMatch[1] || letterMatch[2]).toUpperCase();
+      if (correctOption) {
+        correctOptionText = correctOption.text || '';
+        correctOptionLetter = correctOption.letter || '';
+
+        // Check if the selected option is correct
+        if (selectedOptionObj) {
+          isCorrect = selectedOptionObj._id?.toString() === correctOption._id?.toString() ||
+                     selectedOptionObj.letter === correctOption.letter ||
+                     selectedOptionObj.isCorrect === true;
         }
       }
 
-      // Log the selected option letter for debugging
-      console.log(`Selected option letter: ${result.answers[answerIndex].selectedOptionLetter || 'None'}`);
-
-
-      // Mark as correct or incorrect
+      // Store the grading results
       result.answers[answerIndex].isCorrect = isCorrect;
-      result.answers[answerIndex].score = isCorrect ? question.points : 0;
+      result.answers[answerIndex].score = isCorrect ? (question.points || 1) : 0;
 
-      // Store the correct answer for display in results (with letter and text)
-      const correctAnswerDisplay = correctOptionLetter
-        ? `${correctOptionLetter}. ${correctOptionText}`
-        : correctOptionText;
-      result.answers[answerIndex].correctedAnswer = correctAnswerDisplay;
-      if (correctOptionLetter) {
-        result.answers[answerIndex].correctOptionLetter = correctOptionLetter;
+      // Enhanced feedback with better information
+      if (isCorrect) {
+        result.answers[answerIndex].feedback = `✅ Correct! You selected: ${selectedOptionObj?.letter || ''}. ${selectedOptionObj?.text || selectedOption}`;
+      } else {
+        const correctDisplay = correctOptionLetter ? `${correctOptionLetter}. ${correctOptionText}` : correctOptionText;
+        const selectedDisplay = selectedOptionObj?.letter ? `${selectedOptionObj.letter}. ${selectedOptionObj.text}` : selectedOption;
+        result.answers[answerIndex].feedback = `❌ Incorrect. You selected: ${selectedDisplay}. The correct answer is: ${correctDisplay}`;
       }
 
       console.log(`Multiple choice answer for question ${questionId}:`);
@@ -1478,52 +1310,136 @@ const submitAnswer = async (req, res) => {
 // @desc    Complete an exam with enhanced validation and error handling
 // @route   POST /api/exam/:id/complete
 // @access  Private/Student
+// Simple in-memory lock to prevent concurrent submissions
+const submissionLocks = new Map();
+
 const completeExam = async (req, res) => {
+  const lockKey = `${req.user._id}-${req.params.id}`;
+
+  // Check if there's already a submission in progress for this student/exam
+  if (submissionLocks.has(lockKey)) {
+    console.log(`⚠️ Concurrent submission attempt detected for student ${req.user._id}, exam ${req.params.id}`);
+    return res.status(429).json({
+      message: 'Submission already in progress. Please wait.',
+      success: false
+    });
+  }
+
+  // Set the lock
+  submissionLocks.set(lockKey, Date.now());
+
   try {
     console.log(`Starting exam completion for student ${req.user._id}, exam ${req.params.id}`);
 
     // Enhanced validation
     if (!req.params.id) {
+      submissionLocks.delete(lockKey);
       return res.status(400).json({
         message: 'Exam ID is required',
         success: false
       });
     }
 
-    // Find the result for this student and exam with enhanced error handling
-    const result = await Result.findOne({
+    // Debug: Check all results for this student and exam
+    const allResults = await Result.find({
+      student: req.user._id,
+      exam: req.params.id
+    }).select('_id isCompleted endTime createdAt');
+
+    console.log(`Found ${allResults.length} results for student ${req.user._id} and exam ${req.params.id}:`);
+    allResults.forEach((result, index) => {
+      console.log(`  Result ${index + 1}: ID=${result._id}, completed=${result.isCompleted}, endTime=${result.endTime}, created=${result.createdAt}`);
+    });
+
+    // Find the current active (incomplete) result for this student and exam
+    const currentResult = await Result.findOne({
       student: req.user._id,
       exam: req.params.id,
       isCompleted: false
-    }).populate({
-      path: 'answers.question',
-      select: 'text type correctAnswer points section'
-    });
+    }).sort({ createdAt: -1 }); // Get the most recent incomplete result
 
-    if (!result) {
-      // Check if there's a completed result
-      const completedResult = await Result.findOne({
+    // If there's no active result, check if there's already a completed one
+    if (!currentResult) {
+      const existingCompletedResult = await Result.findOne({
         student: req.user._id,
         exam: req.params.id,
         isCompleted: true
-      });
+      }).sort({ endTime: -1 }); // Get the most recent completed result
 
-      if (completedResult) {
+      if (existingCompletedResult) {
+        console.log(`⚠️ Student ${req.user._id} attempted to submit already completed exam ${req.params.id}`);
+        console.log(`Existing completed result ID: ${existingCompletedResult._id}`);
+        console.log(`Existing result completion time: ${existingCompletedResult.endTime}`);
+
+        // Release the lock before returning
+        submissionLocks.delete(lockKey);
+
+        // Return the existing result data instead of just an error
+        const percentage = existingCompletedResult.maxPossibleScore > 0
+          ? (existingCompletedResult.totalScore / existingCompletedResult.maxPossibleScore) * 100
+          : 0;
+
         return res.status(409).json({
           message: 'Exam has already been completed',
           success: false,
-          resultId: completedResult._id
+          resultId: existingCompletedResult._id,
+          alreadyCompleted: true,
+          totalScore: existingCompletedResult.totalScore,
+          maxPossibleScore: existingCompletedResult.maxPossibleScore,
+          percentage: percentage,
+          endTime: existingCompletedResult.endTime
+        });
+      } else {
+        // No active or completed result found
+        submissionLocks.delete(lockKey);
+        return res.status(404).json({
+          message: 'No active exam session found. Please start the exam first.',
+          success: false
         });
       }
+    }
 
+    // Check if the current result is already completed (race condition protection)
+    if (currentResult.isCompleted) {
+      console.log(`⚠️ Current result ${currentResult._id} is already completed`);
+
+      // Release the lock before returning
+      submissionLocks.delete(lockKey);
+
+      // Return the current result data
+      const percentage = currentResult.maxPossibleScore > 0
+        ? (currentResult.totalScore / currentResult.maxPossibleScore) * 100
+        : 0;
+
+      return res.status(409).json({
+        message: 'This exam session has already been completed',
+        success: false,
+        resultId: currentResult._id,
+        alreadyCompleted: true,
+        totalScore: currentResult.totalScore,
+        maxPossibleScore: currentResult.maxPossibleScore,
+        percentage: percentage,
+        endTime: currentResult.endTime
+      });
+    }
+
+    // Use the current result we already found and populate the necessary fields
+    const result = await Result.findById(currentResult._id).populate({
+      path: 'answers.question',
+      select: 'text type correctAnswer points section options'
+    });
+
+    if (!result) {
+      submissionLocks.delete(lockKey);
       return res.status(404).json({
-        message: 'Exam session not found. Please start the exam first.',
+        message: 'Exam session not found',
         success: false
       });
     }
 
     // Validate that the result has answers
     if (!result.answers || result.answers.length === 0) {
+      submissionLocks.delete(lockKey);
       return res.status(400).json({
         message: 'No answers found. Please answer at least one question before submitting.',
         success: false
@@ -1538,26 +1454,39 @@ const completeExam = async (req, res) => {
     // Get the exam object for validation
     const exam = await Exam.findById(result.exam);
     if (!exam) {
+      submissionLocks.delete(lockKey);
       return res.status(404).json({
         message: 'Exam not found',
         success: false
       });
     }
 
-    // Validate the submission
+    // Enhanced submission validation with detailed logging
+    console.log('🔍 Validating exam submission...');
     const submissionValidation = validateExamSubmission(result, exam);
+
     if (!submissionValidation.success) {
+      console.error('❌ Submission validation failed:', submissionValidation.errors);
+      submissionLocks.delete(lockKey);
       return res.status(400).json({
-        message: 'Submission validation failed',
+        message: 'Invalid submission data',
         errors: submissionValidation.errors,
-        warnings: submissionValidation.warnings,
-        success: false
+        warnings: submissionValidation.warnings || [],
+        success: false,
+        details: {
+          totalQuestions: result.answers.length,
+          answeredQuestions: submissionValidation.stats?.answeredQuestions || 0,
+          validationErrors: submissionValidation.errors
+        }
       });
     }
+
+    console.log('✅ Submission validation passed:', submissionValidation.stats);
 
     // Validate submission time
     const timeValidation = validateSubmissionTime(result, exam);
     if (!timeValidation.success) {
+      submissionLocks.delete(lockKey);
       return res.status(400).json({
         message: 'Submission time validation failed',
         errors: timeValidation.errors,
@@ -1576,33 +1505,69 @@ const completeExam = async (req, res) => {
 
     console.log(`Validation passed. Starting grading process for ${submissionValidation.stats.answeredQuestions} answered questions`);
 
-    // Add timeout wrapper for the entire grading process
+    // Add timeout wrapper for the entire grading process - reduced for faster submissions
     const gradingTimeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        reject(new Error('Grading process timed out after 60 seconds'));
-      }, 60000); // 60 seconds total timeout for grading
+        reject(new Error('Grading process timed out after 15 seconds'));
+      }, 15000); // 15 seconds total timeout for faster submissions
     });
 
     const gradingPromise = (async () => {
-      // Grade any open-ended questions that haven't been graded yet
-      // Use a more sophisticated approach that considers question context
+      // Import the enhanced grading utility
+      const { gradeQuestionByType } = require('../utils/enhancedGrading');
+
+      // Grade all questions that have answers and should be graded
       for (let i = 0; i < result.answers.length; i++) {
-      const answer = result.answers[i];
-      const question = answer.question;
+        const answer = result.answers[i];
+        const question = answer.question;
 
-      // Use enhanced grading for all question types
-      if (answer.textAnswer || answer.selectedOption || answer.matchingAnswers || answer.orderingAnswer || answer.dragDropAnswer) {
-        try {
-          console.log(`Grading ${question.type} answer for question ${question._id}`);
+        // Check if this question should be graded (for selective answering)
+        const shouldGrade = answer.isSelected !== false; // Grade if isSelected is true or undefined
 
-          // Use the enhanced grading system with semantic equivalence detection
-          const grading = await gradeQuestionByType(question, answer, question.correctAnswer);
+        // Check if the question has any answer content
+        const hasAnswer = answer.textAnswer ||
+                          answer.selectedOption ||
+                          answer.matchingAnswers ||
+                          answer.orderingAnswer ||
+                          answer.dragDropAnswer;
 
-          // Update the answer with grading results - ensure database consistency like regrading
-          result.answers[i].score = grading.score || 0;
-          result.answers[i].feedback = grading.feedback || 'No feedback provided';
-          result.answers[i].isCorrect = grading.score >= question.points;
-          result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+        if (hasAnswer && shouldGrade) {
+          try {
+            console.log(`Grading ${question.type} answer for question ${question._id} (Section ${question.section})`);
+            console.log(`Question selected for grading: ${answer.isSelected !== false}`);
+
+            // Use the enhanced grading system with semantic equivalence detection
+            console.log(`🚀 Fast grading ${question.type} in section ${question.section}`);
+            const gradingStartTime = Date.now();
+
+            // Set individual question timeout for faster processing
+            const questionTimeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error(`Question grading timeout after 3 seconds`)), 3000);
+            });
+
+            const grading = await Promise.race([
+              gradeQuestionByType(question, answer, question.correctAnswer),
+              questionTimeoutPromise
+            ]);
+
+            const gradingDuration = Date.now() - gradingStartTime;
+            console.log(`⚡ Section ${question.section} graded in ${gradingDuration}ms`);
+
+            // Update the answer with grading results - ensure database consistency like regrading
+            result.answers[i].score = grading.score || 0;
+            result.answers[i].feedback = grading.feedback || 'No feedback provided';
+            result.answers[i].isCorrect = grading.score >= question.points;
+            result.answers[i].correctedAnswer = grading.correctedAnswer || question.correctAnswer;
+
+          // Store enhanced AI grading data for sections B & C
+          if (grading.details) {
+            result.answers[i].conceptsPresent = grading.details.keyConceptsPresent || [];
+            result.answers[i].conceptsMissing = grading.details.keyConceptsMissing || [];
+            result.answers[i].improvementSuggestions = grading.details.improvementSuggestions || [];
+            result.answers[i].technicalAccuracy = grading.details.technicalAccuracy || '';
+            result.answers[i].confidenceLevel = grading.details.confidenceLevel || 'medium';
+            result.answers[i].partialCreditBreakdown = grading.details.partialCreditBreakdown || {};
+          }
 
           // Mark that this answer has been graded with enhanced system
           result.answers[i].gradingMethod = grading.details?.gradingMethod || 'enhanced_grading';
@@ -1880,10 +1845,10 @@ const completeExam = async (req, res) => {
       'enhanced_grading', 'semantic_match', 'direct_comparison', 'keyword_matching',
       'default_fallback', 'background_ai_grading', 'manual_grading', 'ai_grading',
       'regrade_ai_grading', 'admin_regrade', 'ai_assisted', 'predefined',
-      'error_fallback', 'fallback', 'no_answer', 'fallback_no_answer',
+      'error_fallback', 'fallback', 'fallback_simple', 'no_answer', 'fallback_no_answer',
       'fallback_no_model', 'fallback_exact_match', 'fallback_exact_match_cleaned',
       'fallback_abbreviation_match', 'fallback_expansion_match', 'fallback_semantic_match',
-      'fallback_keyword_matching'
+      'fallback_keyword_matching', 'not_selected', 'timeout', 'error'
     ];
 
     result.answers.forEach((answer, index) => {
@@ -1969,7 +1934,7 @@ const completeExam = async (req, res) => {
           // Only regrade answers that were graded with fallback methods
           const currentResult = await Result.findById(result._id).populate({
             path: 'answers.question',
-            select: 'text type correctAnswer points section'
+            select: 'text type correctAnswer points section options'
           });
 
           if (!currentResult) {
@@ -2067,6 +2032,9 @@ const completeExam = async (req, res) => {
     const maxPossibleScore = result.maxPossibleScore || 1; // Avoid division by zero
     const percentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
 
+    // Release the submission lock
+    submissionLocks.delete(lockKey);
+
     res.json({
       message: 'Exam completed successfully',
       totalScore: totalScore,
@@ -2077,7 +2045,19 @@ const completeExam = async (req, res) => {
     });
   } catch (error) {
     console.error('Complete exam error:', error);
+
+    // Release the submission lock in case of error
+    submissionLocks.delete(lockKey);
+
     res.status(500).json({ message: 'Server error' });
+  } finally {
+    // Cleanup old locks (older than 5 minutes)
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    for (const [key, timestamp] of submissionLocks.entries()) {
+      if (timestamp < fiveMinutesAgo) {
+        submissionLocks.delete(key);
+      }
+    }
   }
 };
 
@@ -2137,7 +2117,7 @@ const triggerAIGrading = async (req, res) => {
   try {
     const result = await Result.findById(req.params.resultId).populate({
       path: 'answers.question',
-      select: 'text type correctAnswer points'
+      select: 'text type correctAnswer points section options'
     });
 
     if (!result) {
@@ -3416,6 +3396,40 @@ const comprehensiveAIGrading = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+// Helper function for faster AI grading with timing
+async function gradeQuestionWithTiming(question, answer, index, section) {
+  const startTime = Date.now();
+  try {
+    console.log(`🔄 Processing ${question.type} in section ${section} (${index})`);
+
+    // Import the enhanced grading utility
+    const { gradeQuestionByType } = require('../utils/enhancedGrading');
+
+    const grading = await gradeQuestionByType(question, answer, question.correctAnswer);
+    const duration = Date.now() - startTime;
+
+    console.log(`⚡ Section ${section} question graded in ${duration}ms`);
+
+    return { index, grading, duration, section };
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`❌ Error grading section ${section} question (${duration}ms):`, error.message);
+
+    // Return fallback grading
+    return {
+      index,
+      grading: {
+        score: 0,
+        feedback: 'Error occurred during grading',
+        details: { error: error.message, gradingMethod: 'error_fallback' }
+      },
+      duration,
+      section,
+      error: true
+    };
+  }
+}
 
 // Helper function to check semantic similarity
 function areSemanticallySimilar(text1, text2) {

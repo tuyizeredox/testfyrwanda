@@ -96,6 +96,8 @@ const ResultSchema = new mongoose.Schema({
       type: String,
       enum: [
         'enhanced_grading',
+        'enhanced_ai_grading',
+        'enhanced_ai',
         'semantic_match',
         'direct_comparison',
         'keyword_matching',
@@ -117,9 +119,34 @@ const ResultSchema = new mongoose.Schema({
         'fallback_abbreviation_match',
         'fallback_expansion_match',
         'fallback_semantic_match',
-        'fallback_keyword_matching'
+        'fallback_keyword_matching',
+        'not_selected'
       ],
       default: 'enhanced_grading'
+    },
+    // Enhanced AI grading fields for sections B & C
+    conceptsPresent: [{
+      type: String // Key concepts identified in the answer
+    }],
+    conceptsMissing: [{
+      type: String // Key concepts missing from the answer
+    }],
+    improvementSuggestions: [{
+      type: String // Specific suggestions for improvement
+    }],
+    technicalAccuracy: {
+      type: String // Assessment of technical correctness
+    },
+    confidenceLevel: {
+      type: String,
+      enum: ['low', 'medium', 'high'],
+      default: 'medium'
+    },
+    partialCreditBreakdown: {
+      accuracy: { type: Number, default: 0 },
+      completeness: { type: Number, default: 0 },
+      understanding: { type: Number, default: 0 },
+      clarity: { type: Number, default: 0 }
     }
   }],
   totalScore: {

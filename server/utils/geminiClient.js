@@ -7,6 +7,36 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { processAIResponse } = require('./responseHandler');
+
+// Helper function to reconstruct text from character-by-character object
+const reconstructTextFromObject = (textObj) => {
+  try {
+    if (!textObj || typeof textObj !== 'object') {
+      throw new Error('Invalid text object provided');
+    }
+
+    // Get all numeric keys and sort them
+    const keys = Object.keys(textObj)
+      .filter(key => !isNaN(parseInt(key)))
+      .sort((a, b) => parseInt(a) - parseInt(b));
+
+    if (keys.length === 0) {
+      throw new Error('No numeric keys found in text object');
+    }
+
+    // Reconstruct the string
+    const reconstructedText = keys.map(key => textObj[key]).join('');
+
+    console.log(`Successfully reconstructed text from ${keys.length} character objects`);
+    return reconstructedText;
+  } catch (reconstructError) {
+    console.error('Failed to reconstruct text from object:', reconstructError);
+    throw new Error('Invalid response format from Gemini API');
+  }
+};
+
+
 
 // Simple in-memory cache
 const responseCache = new Map();
@@ -139,7 +169,13 @@ const createGeminiClient = () => {
         // Return the cached response in the same format as the API would
         return {
           response: {
-            text: () => cachedResponse.text,
+            text: () => {
+              // Handle cached responses that might be in object format
+              if (typeof cachedResponse.text === 'object' && cachedResponse.text !== null) {
+                return reconstructTextFromObject(cachedResponse.text);
+              }
+              return cachedResponse.text;
+            },
             candidates: cachedResponse.candidates,
             promptFeedback: cachedResponse.promptFeedback
           }
@@ -165,7 +201,7 @@ const createGeminiClient = () => {
 
           // Cache the successful response
           try {
-            const responseText = result.response.text();
+            const responseText = processAIResponse(result.response);
             saveToCache(cacheKey, {
               text: responseText,
               candidates: result.response.candidates,
@@ -238,9 +274,84 @@ const createGeminiClient = () => {
     return model;
   };
 
+  // Enhanced generateContent function with better error handling and response validation
+  const generateContent = async (prompt, options = {}) => {
+    try {
+      // Validate input
+      if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+        throw new Error('Invalid prompt provided');
+      }
+
+      // Clean the prompt to remove any problematic characters
+      const cleanPrompt = prompt.trim().replace(/[\x00-\x1F\x7F]/g, '');
+
+      // Get the model with enhanced configuration
+      const model = getModel('gemini-1.5-flash');
+
+      console.log(`Generating content with Gemini (prompt length: ${cleanPrompt.length} chars)`);
+
+      // Generate content with timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Gemini API timeout')), 25000);
+      });
+
+      const result = await Promise.race([
+        model.generateContent(cleanPrompt),
+        timeoutPromise
+      ]);
+
+      // Validate the result
+      if (!result || !result.response) {
+        throw new Error('No response received from Gemini API');
+      }
+
+      const response = result.response;
+
+      // Use the robust response handler to extract text
+      const cleanText = processAIResponse(response);
+
+      // Validate the text content
+      if (!cleanText || typeof cleanText !== 'string') {
+        console.error('Failed to extract valid text from response');
+        console.error('Response type:', typeof response);
+        console.error('Response structure:', JSON.stringify(response, null, 2).substring(0, 500));
+        throw new Error('Invalid text content received from Gemini API');
+      }
+
+      if (cleanText.length === 0) {
+        throw new Error('Empty response received from Gemini API');
+      }
+
+      console.log(`Gemini response received (${cleanText.length} chars)`);
+
+      return {
+        text: cleanText,
+        response: response,
+        usage: response.usageMetadata || null
+      };
+
+    } catch (error) {
+      console.error('Error generating content with Gemini:', error);
+
+      // Provide more specific error messages
+      if (error.message.includes('timeout')) {
+        throw new Error('Gemini API request timed out. Please try again.');
+      } else if (error.message.includes('quota')) {
+        throw new Error('Gemini API quota exceeded. Please try again later.');
+      } else if (error.message.includes('safety')) {
+        throw new Error('Content was blocked by safety filters.');
+      } else if (error.message.includes('Invalid prompt')) {
+        throw new Error('Invalid prompt provided to Gemini API.');
+      } else {
+        throw new Error(`Gemini API error: ${error.message}`);
+      }
+    }
+  };
+
   return {
     genAI,
-    getModel
+    getModel,
+    generateContent
   };
 };
 

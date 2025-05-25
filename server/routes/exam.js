@@ -99,8 +99,6 @@ router.get('/test-routes', (req, res) => {
     message: 'Exam routes are working!',
     timestamp: new Date().toISOString(),
     availableRoutes: [
-      'GET /test-routes',
-      'POST /test-select-question',
       'POST /:id/start',
       'POST /:id/answer',
       'POST /:id/complete',
@@ -110,18 +108,10 @@ router.get('/test-routes', (req, res) => {
   });
 });
 
-// Test route specifically for question selection
-router.post('/test-select-question', auth, (req, res) => {
-  console.log('Test select question route called');
-  console.log('User:', req.user?._id);
-  console.log('Body:', req.body);
-  res.json({
-    message: 'Question selection route is accessible',
-    user: req.user?._id,
-    body: req.body,
-    timestamp: new Date().toISOString()
-  });
-});
+
+
+
+
 
 // Regrading routes (specific routes before parameterized ones)
 router.post('/regrade/:resultId', auth, regradeExamResult); // Allow both students and admins to request regrading
@@ -141,7 +131,7 @@ router.get('/:id', getExamById);
 router.post('/:id/start', isStudent, startExam);
 router.post('/:id/answer', isStudent, submitAnswer);
 router.post('/:id/complete', isStudent, completeExam);
-router.post('/:id/select-question', isStudent, selectQuestion); // New route for selective answering
+router.post('/:id/select-question', auth, isStudent, selectQuestion); // Ensure auth middleware is applied
 router.post('/:id/enable-selective-answering', isAdmin, enableSelectiveAnswering);
 
 module.exports = router;

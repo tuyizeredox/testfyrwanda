@@ -1,5 +1,6 @@
-// Import the centralized Gemini client
+// Import the centralized Gemini client and response handler
 const geminiClient = require('./geminiClient');
+const { processAIResponse, validateForJSON } = require('./responseHandler');
 
 /**
  * Enhanced AI grading system with improved accuracy and reliability
@@ -10,9 +11,9 @@ const geminiClient = require('./geminiClient');
  * @param {string} questionType - Type of question (multiple-choice, open-ended, etc.)
  * @returns {Object} - Score, feedback, and detailed analysis
  */
-const gradeOpenEndedAnswer = async (studentAnswer, modelAnswer, maxPoints, questionText = '', questionType = 'open-ended') => {
+const gradeOpenEndedAnswer = async (studentAnswer, modelAnswer, maxPoints, questionText = '', questionType = 'open-ended', section = 'B') => {
   try {
-    console.log(`Starting enhanced AI grading for ${questionType} question...`);
+    console.log(`Starting enhanced AI grading for ${questionType} question in section ${section}...`);
 
     // Enhanced input validation
     if (!studentAnswer || typeof studentAnswer !== 'string' || studentAnswer.trim().length === 0) {
@@ -39,13 +40,14 @@ const gradeOpenEndedAnswer = async (studentAnswer, modelAnswer, maxPoints, quest
     const cleanModelAnswer = String(modelAnswer || '').trim().replace(/\s+/g, ' ');
     const cleanQuestionText = String(questionText || '').trim().replace(/\s+/g, ' ');
 
-    // Enhanced model answer validation
+    // Enhanced model answer validation - be more lenient for sections B & C
     if (!cleanModelAnswer ||
         cleanModelAnswer === 'Not provided' ||
-        cleanModelAnswer === 'Sample answer' ||
-        cleanModelAnswer.length < 10) {
-      console.log('No valid model answer provided, using lenient grading approach');
-      return generateFallbackScore(cleanStudentAnswer, '', maxPoints, 'No model answer provided');
+        cleanModelAnswer === 'Sample answer') {
+      console.log('No valid model answer provided, using AI-based grading approach');
+
+      // For sections B & C, use AI to generate a comprehensive evaluation even without model answer
+      return await gradeWithoutModelAnswer(cleanStudentAnswer, cleanQuestionText, maxPoints, questionType);
     }
 
     // For fill-in-blank questions, be more lenient with short answers
@@ -80,19 +82,24 @@ const gradeOpenEndedAnswer = async (studentAnswer, modelAnswer, maxPoints, quest
       }
     }
 
-    // Get the generative model from our centralized client
-    const model = geminiClient.getModel('gemini-1.5-flash'); // Use flash for better performance
+    // Use the enhanced generateContent function from geminiClient
 
-    // Create an enhanced prompt for semantic understanding and grading
+    // Create an enhanced prompt for semantic understanding and grading with section optimization
+    const sectionContext = section === 'C' ? 'essay/long-answer requiring comprehensive analysis' : 'short-answer requiring technical accuracy';
+    const gradingFocus = section === 'C'
+      ? 'depth of understanding, comprehensive explanations, examples, and detailed analysis'
+      : 'technical accuracy, key concepts, and precise terminology';
+
     const prompt = `
 You are an expert AI exam grader specializing in academic assessment with deep knowledge of computer systems, technology, and educational standards. Your task is to provide accurate, fair, and constructive grading that recognizes semantic equivalence.
 
 GRADING CONTEXT:
-Question Type: ${questionType}
+Question Type: ${questionType} (Section ${section} - ${sectionContext})
 Question Text: ${cleanQuestionText || 'Not provided'}
 Maximum Points: ${maxPoints}
 Model Answer: ${cleanModelAnswer}
 Student Answer: ${cleanStudentAnswer}
+Section Focus: ${gradingFocus}
 
 SEMANTIC GRADING GUIDELINES:
 1. RECOGNIZE EQUIVALENT MEANINGS: If the student answer means the same as the model answer, award full points
@@ -103,11 +110,20 @@ SEMANTIC GRADING GUIDELINES:
 6. PARTIAL EXPANSIONS: "Hard disk" = "Hard disk drive" = "HDD" (all correct)
 7. COMMON VARIATIONS: "Operating System" = "OS" = "System Software" (context dependent)
 
-GRADING CRITERIA:
-1. ACCURACY (40%): How factually correct is the answer?
-2. COMPLETENESS (30%): Does the answer address all parts of the question?
-3. UNDERSTANDING (20%): Does the student demonstrate clear understanding of concepts?
-4. CLARITY (10%): Is the answer well-structured and clearly expressed?
+SECTION-SPECIFIC GRADING CRITERIA:
+${section === 'C' ? `
+SECTION C (Essay/Long Answer) CRITERIA:
+1. DEPTH OF ANALYSIS (35%): Comprehensive understanding and detailed explanations
+2. TECHNICAL ACCURACY (25%): Correct use of technical terms and concepts
+3. EXAMPLES & EVIDENCE (20%): Relevant examples and supporting details
+4. ORGANIZATION & CLARITY (20%): Well-structured, logical flow, clear expression
+` : `
+SECTION B (Short Answer) CRITERIA:
+1. TECHNICAL ACCURACY (45%): Correct technical terms and precise answers
+2. COMPLETENESS (30%): All key points addressed concisely
+3. UNDERSTANDING (15%): Clear demonstration of concept knowledge
+4. CLARITY (10%): Clear and direct expression
+`}
 
 SEMANTIC EQUIVALENCE RULES (MOST IMPORTANT - FOLLOW THESE EXACTLY):
 - If student answer is an abbreviation of model answer → AWARD FULL POINTS (${maxPoints})
@@ -127,12 +143,22 @@ SPECIFIC EXAMPLES FOR FULL POINTS:
 - Model: "Hard Disk Drive" | Student: "Hard disk" → ${maxPoints}/${maxPoints} points
 - Model: "Motherboard" | Student: "motherboard" → ${maxPoints}/${maxPoints} points
 
-GRADING GUIDELINES:
-- Award full points (${maxPoints}) for semantically equivalent answers
-- Award 75-90% only if answer is incomplete but mostly correct
-- Award 50-74% only if answer shows understanding but has significant errors
-- Award 25-49% only if answer shows some understanding but is largely wrong
-- Award 0-24% only if answer is completely incorrect or irrelevant
+SECTION-SPECIFIC GRADING GUIDELINES:
+${section === 'C' ? `
+SECTION C GRADING SCALE:
+- Award full points (${maxPoints}) for comprehensive, well-analyzed answers with examples
+- Award 75-90% for good understanding with minor gaps in analysis or examples
+- Award 50-74% for basic understanding but lacking depth or missing key elements
+- Award 25-49% for minimal understanding with significant gaps in analysis
+- Award 0-24% for incorrect or irrelevant responses
+` : `
+SECTION B GRADING SCALE:
+- Award full points (${maxPoints}) for technically accurate and complete answers
+- Award 75-90% for mostly correct with minor technical inaccuracies
+- Award 50-74% for partially correct but missing key technical elements
+- Award 25-49% for minimal technical accuracy with major gaps
+- Award 0-24% for incorrect or irrelevant technical responses
+`}
 
 CRITICAL RULE: DO NOT reduce points for abbreviations, expansions, or case differences if the meaning is correct!
 
@@ -140,17 +166,25 @@ RESPONSE FORMAT:
 Return your response as valid JSON with this exact structure:
 {
   "score": [number between 0 and ${maxPoints}],
-  "feedback": "[Detailed constructive feedback explaining the score, what was done well, and areas for improvement]",
-  "correctedAnswer": "[The model answer or an improved version of the student's answer]",
+  "feedback": "[Detailed constructive feedback explaining the score, what was done well, and areas for improvement. Be specific about technical concepts and provide guidance for improvement.]",
+  "correctedAnswer": "[Provide a comprehensive model answer that demonstrates the expected response. Include technical details, examples, and explanations that a student should know.]",
   "keyConceptsPresent": ["[concept1]", "[concept2]"],
   "keyConceptsMissing": ["[concept3]", "[concept4]"],
   "confidenceLevel": "[high|medium|low]",
   "partialCreditBreakdown": {
-    "accuracy": [score out of ${Math.round(maxPoints * 0.4)}],
-    "completeness": [score out of ${Math.round(maxPoints * 0.3)}],
-    "understanding": [score out of ${Math.round(maxPoints * 0.2)}],
-    "clarity": [score out of ${Math.round(maxPoints * 0.1)}]
-  }
+${section === 'C' ? `
+    "depthOfAnalysis": [score out of ${Math.round(maxPoints * 0.35)}],
+    "technicalAccuracy": [score out of ${Math.round(maxPoints * 0.25)}],
+    "examplesEvidence": [score out of ${Math.round(maxPoints * 0.20)}],
+    "organizationClarity": [score out of ${Math.round(maxPoints * 0.20)}]
+` : `
+    "technicalAccuracy": [score out of ${Math.round(maxPoints * 0.45)}],
+    "completeness": [score out of ${Math.round(maxPoints * 0.30)}],
+    "understanding": [score out of ${Math.round(maxPoints * 0.15)}],
+    "clarity": [score out of ${Math.round(maxPoints * 0.10)}]
+`}  },
+  "improvementSuggestions": ["[specific suggestion 1]", "[specific suggestion 2]"],
+  "technicalAccuracy": "[assessment of technical correctness]"
 }
 
 IMPORTANT:
@@ -160,47 +194,58 @@ IMPORTANT:
 - Only return valid JSON, no additional text
 `;
 
-    // Set generation config for better JSON output
-    const generationConfig = {
-      temperature: 0.2,  // Lower temperature for more deterministic output
-      topP: 0.8,
-      topK: 40,
-      maxOutputTokens: 2048,
-    };
-
-    // Generate content with proper error handling
+    // Generate content with proper error handling and timeout
     try {
       console.log('Sending grading request to Gemini API...');
 
-      // Add timeout to avoid hanging if API is unresponsive - reduced to 8 seconds
+      // Add timeout to prevent hanging - reduced for faster submissions
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Gemini API request timed out')), 8000);
+        setTimeout(() => reject(new Error('AI grading timeout after 5 seconds')), 5000);
       });
 
-      // Race the API call against the timeout
-      const result = await Promise.race([
-        model.generateContent({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig,
-        }),
+      // Use the enhanced generateContent function with timeout
+      const response = await Promise.race([
+        geminiClient.generateContent(prompt),
         timeoutPromise
       ]);
 
       console.log('Received grading response from Gemini API');
 
-      const response = await result.response;
-      const text = response.text();
-
-      // Clean up the response to ensure it's valid JSON
-      const jsonStart = text.indexOf('{');
-      const jsonEnd = text.lastIndexOf('}') + 1;
-
-      if (jsonStart === -1 || jsonEnd === 0) {
-        throw new Error('No JSON object found in AI response');
+      // Process the AI response with enhanced error handling
+      let rawText = '';
+      try {
+        rawText = processAIResponse(response);
+        console.log(`Processed AI response (${rawText.length} chars)`);
+      } catch (responseError) {
+        console.error('Error processing AI response:', responseError);
+        // Try direct text extraction as fallback
+        if (response && response.text) {
+          rawText = response.text;
+        } else if (typeof response === 'string') {
+          rawText = response;
+        } else {
+          throw new Error('Unable to extract text from AI response');
+        }
       }
 
-      const jsonText = text.substring(jsonStart, jsonEnd);
-      console.log('Successfully extracted JSON from AI grading response');
+      // Enhanced JSON extraction and validation
+      let jsonText = rawText;
+
+      // Remove markdown formatting
+      jsonText = jsonText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+
+      // Find JSON object boundaries
+      const jsonStart = jsonText.indexOf('{');
+      const jsonEnd = jsonText.lastIndexOf('}');
+
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        jsonText = jsonText.substring(jsonStart, jsonEnd + 1);
+      } else {
+        console.error('No valid JSON object found in AI response');
+        console.log('Raw response sample:', rawText.substring(0, 300) + '...');
+        throw new Error('No valid JSON object found in AI response');
+      }
+      console.log('Successfully extracted and validated JSON from AI grading response');
 
       // Parse the JSON response
       try {
@@ -215,14 +260,17 @@ IMPORTANT:
         return {
           score: Math.round(grading.score * 100) / 100, // Round to 2 decimal places
           feedback: grading.feedback || 'No feedback provided',
-          correctedAnswer: grading.correctedAnswer || modelAnswer,
+          correctedAnswer: grading.correctedAnswer || modelAnswer || 'Model answer not available',
           details: {
             keyConceptsPresent: grading.keyConceptsPresent || [],
             keyConceptsMissing: grading.keyConceptsMissing || [],
             confidenceLevel: grading.confidenceLevel || 'medium',
             partialCreditBreakdown: grading.partialCreditBreakdown || {},
+            improvementSuggestions: grading.improvementSuggestions || [],
+            technicalAccuracy: grading.technicalAccuracy || 'Not assessed',
             questionType: questionType,
-            gradingMethod: 'enhanced_ai'
+            gradingMethod: 'enhanced_ai',
+            aiGraded: true
           }
         };
       } catch (parseError) {
@@ -462,6 +510,168 @@ const generateFallbackScore = (studentAnswer, modelAnswer, maxPoints, errorReaso
   };
 };
 
+/**
+ * Extract technical terms from student answer
+ */
+const extractTechnicalTerms = (text) => {
+  const technicalTerms = [
+    'cpu', 'ram', 'rom', 'gpu', 'motherboard', 'processor', 'memory',
+    'wan', 'lan', 'network', 'router', 'switch', 'protocol', 'tcp', 'ip',
+    'html', 'css', 'javascript', 'database', 'sql', 'server', 'client',
+    'operating system', 'os', 'windows', 'linux', 'software', 'hardware',
+    'algorithm', 'data structure', 'programming', 'coding', 'debugging',
+    'compiler', 'interpreter', 'variable', 'function', 'loop', 'array',
+    'object', 'class', 'inheritance', 'polymorphism', 'encapsulation',
+    'binary', 'decimal', 'hexadecimal', 'bit', 'byte', 'kilobyte', 'megabyte',
+    'input', 'output', 'storage', 'cache', 'buffer', 'register',
+    'transistor', 'capacitor', 'resistor', 'diode', 'circuit', 'voltage',
+    'current', 'power', 'frequency', 'bandwidth', 'latency', 'throughput'
+  ];
+
+  const lowerText = text.toLowerCase();
+  return technicalTerms.filter(term => lowerText.includes(term));
+};
+
+/**
+ * Grade answers without model answer using AI analysis
+ */
+const gradeWithoutModelAnswer = async (studentAnswer, questionText, maxPoints, questionType) => {
+  try {
+    console.log('🤖 Grading without model answer using AI analysis');
+
+    // Create a focused, fast AI prompt for grading without model answer
+    const prompt = `
+You are an expert grader for ${questionType} questions. Grade this student answer based on technical accuracy, completeness, and understanding.
+
+QUESTION: ${questionText}
+
+STUDENT ANSWER: ${studentAnswer}
+
+GRADING CRITERIA:
+- Technical accuracy (40% of score)
+- Completeness of explanation (30% of score)
+- Understanding demonstrated (20% of score)
+- Clarity and organization (10% of score)
+
+RESPONSE FORMAT (JSON only):
+{
+  "score": [number between 0 and ${maxPoints}],
+  "feedback": "[Detailed feedback explaining the score and areas for improvement]",
+  "correctedAnswer": "[Provide a comprehensive model answer showing what a complete response should include]",
+  "keyConceptsPresent": ["[concept1]", "[concept2]"],
+  "keyConceptsMissing": ["[concept3]", "[concept4]"],
+  "confidenceLevel": "[high|medium|low]",
+  "technicalAccuracy": "[assessment of technical correctness]",
+  "improvementSuggestions": ["[suggestion1]", "[suggestion2]"]
+}`;
+
+    // Use faster AI processing with timeout and better response handling
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('AI grading timeout after 3 seconds')), 3000);
+    });
+
+    const response = await Promise.race([
+      geminiClient.generateContent(prompt),
+      timeoutPromise
+    ]);
+
+    // Process the AI response properly
+    let responseText = '';
+    if (response && response.text) {
+      responseText = response.text.trim();
+    } else if (response && typeof response === 'string') {
+      responseText = response.trim();
+    } else {
+      throw new Error('Invalid AI response format');
+    }
+
+    // Clean up the response text to extract JSON
+    let jsonText = responseText;
+
+    // Remove any markdown formatting
+    jsonText = jsonText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+
+    // Find JSON object in the response
+    const jsonStart = jsonText.indexOf('{');
+    const jsonEnd = jsonText.lastIndexOf('}');
+
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      jsonText = jsonText.substring(jsonStart, jsonEnd + 1);
+    }
+
+    console.log('Processed AI response for JSON parsing:', jsonText.substring(0, 200) + '...');
+
+    try {
+      const grading = JSON.parse(jsonText);
+
+      return {
+        score: Math.round(grading.score * 100) / 100,
+        feedback: grading.feedback || 'AI analysis completed',
+        correctedAnswer: grading.correctedAnswer || 'Model answer generated by AI analysis',
+        details: {
+          keyConceptsPresent: grading.keyConceptsPresent || [],
+          keyConceptsMissing: grading.keyConceptsMissing || [],
+          confidenceLevel: grading.confidenceLevel || 'medium',
+          technicalAccuracy: grading.technicalAccuracy || 'Assessed by AI',
+          improvementSuggestions: grading.improvementSuggestions || [],
+          questionType: questionType,
+          gradingMethod: 'ai_without_model_answer',
+          aiGraded: true
+        }
+      };
+    } catch (parseError) {
+      console.error('Error parsing AI response for no-model grading:', parseError);
+      console.log('Failed to parse JSON, raw response:', responseText.substring(0, 200) + '...');
+
+      // Enhanced fallback: Analyze the student answer for technical content
+      const technicalTerms = extractTechnicalTerms(studentAnswer);
+      const answerLength = studentAnswer.length;
+
+      // Calculate score based on answer quality indicators
+      let score = Math.round(maxPoints * 0.4); // Base score
+
+      // Bonus for technical terms
+      if (technicalTerms.length > 0) {
+        score += Math.min(Math.round(maxPoints * 0.2), maxPoints - score);
+      }
+
+      // Bonus for substantial answer length
+      if (answerLength > 50) {
+        score += Math.min(Math.round(maxPoints * 0.1), maxPoints - score);
+      }
+
+      return {
+        score: Math.min(score, maxPoints),
+        feedback: `Your answer demonstrates understanding of the topic. Technical terms identified: ${technicalTerms.join(', ') || 'none'}. AI detailed analysis was unavailable.`,
+        correctedAnswer: 'Please refer to course materials for complete answer guidance',
+        details: {
+          questionType: questionType,
+          gradingMethod: 'enhanced_fallback_no_model',
+          technicalTermsFound: technicalTerms,
+          answerLength: answerLength,
+          aiGraded: false
+        }
+      };
+    }
+  } catch (error) {
+    console.error('Error in AI grading without model answer:', error);
+
+    // Final fallback
+    const score = Math.min(Math.round(maxPoints * 0.5), maxPoints);
+    return {
+      score: score,
+      feedback: 'Answer provided but detailed analysis unavailable. Please review with instructor.',
+      correctedAnswer: 'Model answer not available',
+      details: {
+        questionType: questionType,
+        gradingMethod: 'fallback_no_model',
+        error: error.message
+      }
+    };
+  }
+};
+
 module.exports = {
-  gradeOpenEndedAnswer
+  gradeOpenEndedAnswer,
+  gradeWithoutModelAnswer
 };

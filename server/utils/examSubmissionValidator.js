@@ -13,37 +13,48 @@ const validateExamSubmission = (result, exam) => {
   const errors = [];
   const warnings = [];
 
-  // Basic validation
+  // Basic validation with enhanced error messages
   if (!result) {
-    errors.push('Result object is required');
+    errors.push('Result object is required - exam session not found');
     return { success: false, errors, warnings };
   }
 
   if (!exam) {
-    errors.push('Exam object is required');
+    errors.push('Exam object is required - exam data not found');
     return { success: false, errors, warnings };
   }
 
   // Check if result has answers
   if (!result.answers || !Array.isArray(result.answers) || result.answers.length === 0) {
-    errors.push('No answers found in the result');
+    errors.push('No answers found in the result. Please answer at least one question before submitting.');
     return { success: false, errors, warnings };
   }
 
-  // Check if exam is already completed
+  // Validate that the result is not already completed
   if (result.isCompleted) {
-    errors.push('Exam has already been completed');
+    errors.push('Exam has already been completed and cannot be submitted again');
     return { success: false, errors, warnings };
   }
 
-  // Validate answer completeness
-  const answeredQuestions = result.answers.filter(answer => 
-    answer.textAnswer?.trim() || 
-    answer.selectedOption || 
-    answer.matchingAnswers || 
-    answer.orderingAnswer || 
-    answer.dragDropAnswer
-  );
+  // Enhanced answer completeness validation
+  const answeredQuestions = result.answers.filter(answer => {
+    // Check for any type of answer content
+    const hasTextAnswer = answer.textAnswer && answer.textAnswer.trim().length > 0;
+    const hasSelectedOption = answer.selectedOption && answer.selectedOption.trim().length > 0;
+    const hasMatchingAnswers = answer.matchingAnswers &&
+      (Array.isArray(answer.matchingAnswers) ? answer.matchingAnswers.length > 0 :
+       typeof answer.matchingAnswers === 'object' && Object.keys(answer.matchingAnswers).length > 0);
+    const hasOrderingAnswer = answer.orderingAnswer &&
+      (Array.isArray(answer.orderingAnswer) ? answer.orderingAnswer.length > 0 :
+       typeof answer.orderingAnswer === 'object' && Object.keys(answer.orderingAnswer).length > 0);
+    const hasDragDropAnswer = answer.dragDropAnswer &&
+      (Array.isArray(answer.dragDropAnswer) ? answer.dragDropAnswer.length > 0 :
+       typeof answer.dragDropAnswer === 'object' && Object.keys(answer.dragDropAnswer).length > 0);
+
+    return hasTextAnswer || hasSelectedOption || hasMatchingAnswers || hasOrderingAnswer || hasDragDropAnswer;
+  });
+
+  console.log(`📊 Submission validation: ${answeredQuestions.length}/${result.answers.length} questions have valid answers`);
 
   if (answeredQuestions.length === 0) {
     errors.push('No valid answers found. Please answer at least one question.');
@@ -52,10 +63,10 @@ const validateExamSubmission = (result, exam) => {
 
   // Check for selective answering requirements
   if (exam.allowSelectiveAnswering) {
-    const sectionBAnswers = result.answers.filter(answer => 
+    const sectionBAnswers = result.answers.filter(answer =>
       answer.question && answer.question.section === 'B'
     );
-    const sectionCAnswers = result.answers.filter(answer => 
+    const sectionCAnswers = result.answers.filter(answer =>
       answer.question && answer.question.section === 'C'
     );
 
@@ -75,11 +86,11 @@ const validateExamSubmission = (result, exam) => {
   }
 
   // Add warnings for incomplete answers
-  const incompleteAnswers = result.answers.filter(answer => 
-    !answer.textAnswer?.trim() && 
-    !answer.selectedOption && 
-    !answer.matchingAnswers && 
-    !answer.orderingAnswer && 
+  const incompleteAnswers = result.answers.filter(answer =>
+    !answer.textAnswer?.trim() &&
+    !answer.selectedOption &&
+    !answer.matchingAnswers &&
+    !answer.orderingAnswer &&
     !answer.dragDropAnswer
   );
 

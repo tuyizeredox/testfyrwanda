@@ -114,13 +114,17 @@ const getStudentResults = async (req, res) => {
 // @access  Private/Student
 const getDetailedResult = async (req, res) => {
   try {
-    console.log(`Fetching detailed result for ID: ${req.params.resultId}, student: ${req.user._id}`);
+    console.log(`🔍 Fetching detailed result for ID: ${req.params.resultId}, student: ${req.user._id}`);
+    const startTime = Date.now();
 
     // Validate the resultId
     if (!req.params.resultId || !req.params.resultId.match(/^[0-9a-fA-F]{24}$/)) {
-      console.log(`Invalid result ID format: ${req.params.resultId}`);
+      console.log(`❌ Invalid result ID format: ${req.params.resultId}`);
       return res.status(400).json({ message: 'Invalid result ID format' });
     }
+
+    // Set a timeout for the database query
+    const queryTimeout = 25000; // 25 seconds timeout
 
     // First, check if the result exists at all
     const resultExists = await Result.findById(req.params.resultId);
@@ -155,14 +159,31 @@ const getDetailedResult = async (req, res) => {
       return res.status(404).json({ message: 'Result not completed yet' });
     }
 
-    const result = await Result.findOne({
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Database query timeout')), queryTimeout);
+    });
+
+    // Optimized query with lean() for better performance
+    const queryPromise = Result.findOne({
       _id: req.params.resultId,
       student: req.user._id,
       isCompleted: true
-    }).populate({
+    })
+    .populate({
       path: 'answers.question',
-      select: 'text type options correctAnswer points section'
-    }).populate('exam', 'title description timeLimit');
+      select: 'text type options correctAnswer points section',
+      options: { lean: true } // Use lean for better performance
+    })
+    .populate({
+      path: 'exam',
+      select: 'title description timeLimit',
+      options: { lean: true }
+    })
+    .lean(); // Use lean for the main query too
+
+    // Race the query against the timeout
+    const result = await Promise.race([queryPromise, timeoutPromise]);
 
     if (!result) {
       console.log(`Result not found after population for ID: ${req.params.resultId}, student: ${req.user._id}`);
@@ -183,12 +204,32 @@ const getDetailedResult = async (req, res) => {
       }
     }
 
-    console.log(`Successfully retrieved result with ${result.answers.length} answers`);
+    const endTime = Date.now();
+    const queryDuration = endTime - startTime;
+
+    console.log(`✅ Successfully retrieved result with ${result.answers.length} answers`);
+    console.log(`⏱️ Query completed in ${queryDuration}ms`);
     res.json(result);
   } catch (error) {
-    console.error('Get detailed result error:', error);
-    console.error('Error details:', error.message);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    const endTime = Date.now();
+    const queryDuration = endTime - startTime;
+
+    console.error('❌ Get detailed result error:', error.message);
+    console.error(`⏱️ Query failed after ${queryDuration}ms`);
+
+    if (error.message === 'Database query timeout') {
+      return res.status(408).json({
+        message: 'Request timeout - the query took too long to complete. Please try again.',
+        timeout: true,
+        duration: queryDuration
+      });
+    }
+
+    res.status(500).json({
+      message: 'Server error while fetching result details',
+      error: error.message,
+      duration: queryDuration
+    });
   }
 };
 

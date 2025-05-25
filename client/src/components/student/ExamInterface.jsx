@@ -263,188 +263,7 @@ const ExamInterface = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Enhanced exam submission with better validation and error handling
-  const handleSubmitExam = useCallback(async () => {
-    try {
-      setSubmitting(true);
-
-      // Show submitting message
-      setSnackbar({
-        open: true,
-        message: 'Preparing to submit your exam...',
-        severity: 'info'
-      });
-
-      // Validate exam state before submission
-      if (!exam || !exam.sections || exam.sections.length === 0) {
-        throw new Error('Invalid exam data. Please refresh the page and try again.');
-      }
-
-      // First, save any unsaved essay answers (no character limit)
-      const unsavedAnswers = Object.entries(answers).filter(([_, answer]) =>
-        answer.hasChanges &&
-        !answer.savedToServer
-      );
-
-      if (unsavedAnswers.length > 0) {
-        setSnackbar({
-          open: true,
-          message: `Saving ${unsavedAnswers.length} unsaved answers before submitting...`,
-          severity: 'info'
-        });
-
-        // Save each unsaved answer with enhanced error handling
-        for (const [questionId, answer] of unsavedAnswers) {
-          try {
-            // Find the question type
-            const question = exam?.sections
-              .flatMap(section => section.questions)
-              .find(q => q._id === questionId);
-
-            if (question && answer.textAnswer) {
-              // Validate answer before saving
-              const cleanAnswer = answer.textAnswer.trim();
-              if (cleanAnswer.length > 0) {
-                await saveAnswerToServer(questionId, cleanAnswer, question.type);
-              }
-            }
-          } catch (error) {
-            console.error(`Error saving answer ${questionId} before submission:`, error);
-            // Show warning but continue with submission
-            setSnackbar({
-              open: true,
-              message: `Warning: Could not save answer for question ${questionId}. Continuing with submission...`,
-              severity: 'warning'
-            });
-          }
-        }
-      }
-
-      // Validate that we have at least some answers
-      const totalAnswers = Object.keys(answers).length;
-      const answeredQuestions = Object.values(answers).filter(answer =>
-        answer.answered || answer.textAnswer?.trim() || answer.selectedOption
-      ).length;
-
-      if (answeredQuestions === 0) {
-        throw new Error('No answers found. Please answer at least one question before submitting.');
-      }
-
-      // Now submit the exam with enhanced retry logic
-      setSnackbar({
-        open: true,
-        message: 'Submitting your exam...',
-        severity: 'info'
-      });
-
-      console.log(`Submitting exam ${id} for completion (${answeredQuestions}/${totalAnswers} questions answered)`);
-
-      // Enhanced retry logic with exponential backoff
-      let retries = 3;
-      let success = false;
-      let response = null;
-      let lastError = null;
-
-      while (retries > 0 && !success) {
-        try {
-          // Add timeout to prevent hanging
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Submission timeout')), 30000);
-          });
-
-          response = await Promise.race([
-            api.post(`/exam/${id}/complete`),
-            timeoutPromise
-          ]);
-
-          success = true;
-          console.log('Exam submitted successfully:', response.data);
-        } catch (submitError) {
-          lastError = submitError;
-          console.warn(`Exam submission attempt failed, retries left: ${retries - 1}`, submitError);
-          retries--;
-
-          if (retries > 0) {
-            // Exponential backoff: wait longer between retries
-            const waitTime = (4 - retries) * 2000; // 2s, 4s, 6s
-            setSnackbar({
-              open: true,
-              message: `Submission failed. Retrying in ${waitTime/1000} seconds... (${retries} attempts left)`,
-              severity: 'warning'
-            });
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-          }
-        }
-      }
-
-      if (!success) {
-        throw lastError || new Error('Failed to submit exam after multiple attempts');
-      }
-
-      // Validate response data
-      if (!response.data) {
-        throw new Error('Invalid response from server. Please contact your administrator.');
-      }
-
-      setExamCompleted(true);
-      setExamResult(response.data);
-      setSubmitting(false);
-
-      // Show success message with score if available
-      const successMessage = response.data.percentage !== undefined
-        ? `Exam submitted successfully! Score: ${response.data.percentage.toFixed(1)}%`
-        : 'Exam submitted successfully! Your results are being processed.';
-
-      setSnackbar({
-        open: true,
-        message: successMessage,
-        severity: 'success'
-      });
-
-    } catch (err) {
-      console.error('Error submitting exam:', err);
-      setSubmitting(false);
-
-      // Provide specific error messages based on error type
-      let errorMessage = 'Failed to submit exam. Please try again.';
-
-      if (err.message.includes('timeout')) {
-        errorMessage = 'Submission timed out. Please check your internet connection and try again.';
-      } else if (err.message.includes('Invalid exam data')) {
-        errorMessage = err.message;
-      } else if (err.message.includes('No answers found')) {
-        errorMessage = err.message;
-      } else if (err.response) {
-        switch (err.response.status) {
-          case 400:
-            errorMessage = 'Invalid submission data. Please check your answers and try again.';
-            break;
-          case 404:
-            errorMessage = 'Exam session not found. Please refresh the page and try again.';
-            break;
-          case 409:
-            errorMessage = 'Exam has already been submitted or is no longer available.';
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later or contact your administrator.';
-            break;
-          default:
-            errorMessage = `Submission failed (Error ${err.response.status}). Please try again.`;
-        }
-      }
-
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: 'error'
-      });
-
-      // Only set critical error state for server errors
-      if (err.response && err.response.status >= 500) {
-        setError('Server error. Please try again later or contact your administrator.');
-      }
-    }
-  }, [id, exam, answers, setSnackbar, setSubmitting, setExamCompleted, setExamResult, setError]);
+  // This will be defined after saveAnswerToServer function
 
   // Function to toggle fullscreen mode
   const toggleFullscreen = useCallback(() => {
@@ -590,7 +409,7 @@ const ExamInterface = () => {
               // Use the saved selection state from the backend
               isSelected = answer.isSelected;
               console.log(`Using backend selection state for question ${answer.question._id}: ${isSelected}`);
-            } else if (selectiveAnswering && (questionSection === 'B' || questionSection === 'C')) {
+            } else if (examRes.data.allowSelectiveAnswering && (questionSection === 'B' || questionSection === 'C')) {
               // Fallback: calculate selection state using the same logic as backend
               const sectionQuestions = examRes.data.sections
                 .find(s => s.name === questionSection)
@@ -612,6 +431,9 @@ const ExamInterface = () => {
               // Select only the first N questions by default (same logic as backend)
               isSelected = questionIndexInSection < requiredCount;
               console.log(`Fallback selection for question ${answer.question._id} in section ${questionSection}: index ${questionIndexInSection}/${sortedSectionQuestions.length}, required ${requiredCount}, selected: ${isSelected}`);
+            } else {
+              // For section A or when selective answering is disabled, all questions are selected
+              isSelected = true;
             }
 
             initialAnswers[answer.question._id] = {
@@ -657,7 +479,7 @@ const ExamInterface = () => {
                 // Backend has already initialized the selection state
                 isSelected = answer.isSelected;
                 console.log(`New session: Using backend selection state for question ${answer.question._id}: ${isSelected}`);
-              } else if (selectiveAnswering && (questionSection === 'B' || questionSection === 'C')) {
+              } else if (examRes.data.allowSelectiveAnswering && (questionSection === 'B' || questionSection === 'C')) {
                 // Fallback: calculate selection state using the same logic as backend
                 const sectionQuestions = examRes.data.sections
                   .find(s => s.name === questionSection)
@@ -679,6 +501,9 @@ const ExamInterface = () => {
                 // Select only the first N questions by default (same logic as backend)
                 isSelected = questionIndexInSection < requiredCount;
                 console.log(`New session fallback: Auto-selecting question ${answer.question._id} in section ${questionSection}: index ${questionIndexInSection}/${sortedSectionQuestions.length}, required ${requiredCount}, selected: ${isSelected}`);
+              } else {
+                // For section A or when selective answering is disabled, all questions are selected
+                isSelected = true;
               }
 
               initialAnswers[answer.question._id] = {
@@ -769,10 +594,13 @@ const ExamInterface = () => {
 
       return () => clearInterval(timer);
     }
-  }, [loading, timeRemaining, examCompleted, handleSubmitExam]);
+  }, [loading, timeRemaining, examCompleted]);
 
   // Create a ref outside the effect to track fullscreen requests
   const hasRequestedFullscreen = React.useRef(false);
+
+  // Create a ref to store the handleSubmitExam function to avoid circular dependencies
+  const handleSubmitExamRef = React.useRef(null);
 
   // Combined security effect - handles all security features
   useEffect(() => {
@@ -812,16 +640,19 @@ const ExamInterface = () => {
       }
 
       // If user manually exits fullscreen and we're in an active exam, show warning and terminate exam
-      if (!isDocFullscreen && !examCompleted) {
+      if (!isDocFullscreen && !examCompleted && !submitting) {
         setWarningCount(prev => prev + 1);
 
         // Show the fullscreen exit warning dialog
         setFullscreenExitWarning(true);
 
-        // After a short delay, submit the exam automatically
+        // After a short delay, submit the exam automatically (only if not already submitting)
         const submitTimer = setTimeout(() => {
-          // Submit the exam directly without showing confirmation dialog
-          handleSubmitExam();
+          // Check again if we're not already submitting or completed
+          if (!submitting && !examCompleted && handleSubmitExamRef.current) {
+            console.log('🔒 Auto-submitting exam due to fullscreen exit');
+            handleSubmitExamRef.current();
+          }
         }, 10000); // Give them 10 seconds to return to fullscreen
 
         // Store the timer ID so we can clear it if needed
@@ -1004,44 +835,141 @@ const ExamInterface = () => {
     return section.questions || [];
   }, [exam, activeSection]);
 
-  // Get current question
-  const getCurrentQuestion = useCallback(() => {
-    const questions = getCurrentSectionQuestions();
-    return questions[activeQuestionIndex] || null;
-  }, [getCurrentSectionQuestions, activeQuestionIndex]);
+  // Get current question with enhanced error handling
+  const getCurrentQuestion = useCallback((skipIndexCorrection = false) => {
+    try {
+      const questions = getCurrentSectionQuestions();
+
+      // Validate that we have questions
+      if (!questions || questions.length === 0) {
+        console.warn('No questions available in current section:', activeSection);
+        return null;
+      }
+
+      // Validate that the activeQuestionIndex is within bounds
+      if (activeQuestionIndex < 0 || activeQuestionIndex >= questions.length) {
+        console.warn(`Question index ${activeQuestionIndex} is out of bounds for section ${activeSection} (${questions.length} questions)`);
+
+        // Only auto-correct if not skipping index correction (to prevent infinite loops during submission)
+        if (!skipIndexCorrection && questions.length > 0) {
+          console.log('Auto-correcting question index to 0');
+          setActiveQuestionIndex(0);
+          return questions[0];
+        }
+
+        // If skipping correction or no questions, return null
+        return null;
+      }
+
+      const currentQuestion = questions[activeQuestionIndex];
+
+      // Validate that the question exists and has required properties
+      if (!currentQuestion || !currentQuestion._id) {
+        console.warn('Current question is invalid:', currentQuestion);
+        return null;
+      }
+
+      return currentQuestion;
+    } catch (error) {
+      console.error('Error getting current question:', error);
+      return null;
+    }
+  }, [getCurrentSectionQuestions, activeQuestionIndex, activeSection]);
 
 
 
-  // Handle section change
+  // Handle section change with enhanced error handling
   const handleSectionChange = (section) => {
-    // Show loading indicator when changing sections
-    setQuestionsLoading(true);
+    try {
+      console.log(`Changing to section: ${section}`);
 
-    // Set a small timeout to allow the loading state to be visible
-    // This improves user experience by showing a transition
-    setTimeout(() => {
-      // Only change to sections that have questions
-      const targetSection = exam.sections.find(s => s.name === section);
-      if (targetSection && targetSection.questions && targetSection.questions.length > 0) {
-        setActiveSection(section);
-        setActiveQuestionIndex(0);
-      } else {
-        // Show a message to the user
+      // Validate exam data
+      if (!exam || !exam.sections || exam.sections.length === 0) {
+        console.error('No exam sections available');
         setSnackbar({
           open: true,
-          message: `Section ${section} has no questions available`,
-          severity: 'warning'
+          message: 'No exam sections available. Please refresh the page.',
+          severity: 'error'
         });
+        return;
       }
+
+      // Show loading indicator when changing sections
+      setQuestionsLoading(true);
+
+      // Set a small timeout to allow the loading state to be visible
+      setTimeout(() => {
+        try {
+          // Find the target section
+          const targetSection = exam.sections.find(s => s.name === section);
+
+          if (!targetSection) {
+            console.error(`Section ${section} not found in exam`);
+            setSnackbar({
+              open: true,
+              message: `Section ${section} not found`,
+              severity: 'error'
+            });
+            setQuestionsLoading(false);
+            return;
+          }
+
+          // Check if section has questions
+          if (!targetSection.questions || targetSection.questions.length === 0) {
+            console.warn(`Section ${section} has no questions`);
+            setSnackbar({
+              open: true,
+              message: `Section ${section} has no questions available`,
+              severity: 'warning'
+            });
+            setQuestionsLoading(false);
+            return;
+          }
+
+          // Successfully change section
+          console.log(`Successfully changing to section ${section} with ${targetSection.questions.length} questions`);
+          setActiveSection(section);
+          setActiveQuestionIndex(0);
+          setQuestionsLoading(false);
+
+        } catch (error) {
+          console.error('Error during section change:', error);
+          setSnackbar({
+            open: true,
+            message: 'Error changing section. Please try again.',
+            severity: 'error'
+          });
+          setQuestionsLoading(false);
+        }
+      }, 300);
+
+    } catch (error) {
+      console.error('Error in handleSectionChange:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error changing section. Please refresh the page.',
+        severity: 'error'
+      });
       setQuestionsLoading(false);
-    }, 300);
+    }
   };
 
-  // Handle question navigation
+  // Handle question navigation with enhanced error handling
   const handleNextQuestion = async () => {
-    // Get current question
-    const currentQuestion = getCurrentQuestion();
-    if (!currentQuestion) return;
+    try {
+      console.log(`Navigating to next question from index ${activeQuestionIndex}`);
+
+      // Get current question
+      const currentQuestion = getCurrentQuestion();
+      if (!currentQuestion) {
+        console.warn('No current question available for navigation');
+        setSnackbar({
+          open: true,
+          message: 'Unable to navigate: current question not found',
+          severity: 'warning'
+        });
+        return;
+      }
 
     // Check if there are unsaved changes for the current question
     const currentAnswer = answers[currentQuestion._id];
@@ -1072,92 +1000,152 @@ const ExamInterface = () => {
       }
     }
 
-    // Now proceed with navigation
-    const questions = getCurrentSectionQuestions();
-    if (activeQuestionIndex < questions.length - 1) {
-      setActiveQuestionIndex(activeQuestionIndex + 1);
-    } else {
-      // Move to next section with questions if available
-      const sectionIndex = exam.sections.findIndex(s => s.name === activeSection);
-      if (sectionIndex < exam.sections.length - 1) {
-        // Find the next section that has questions
-        let nextSectionIndex = sectionIndex + 1;
-        let foundSection = false;
+      // Now proceed with navigation
+      const questions = getCurrentSectionQuestions();
+      if (!questions || questions.length === 0) {
+        console.warn('No questions available for navigation');
+        setSnackbar({
+          open: true,
+          message: 'No questions available in current section',
+          severity: 'warning'
+        });
+        return;
+      }
 
-        while (nextSectionIndex < exam.sections.length && !foundSection) {
-          const nextSection = exam.sections[nextSectionIndex];
-          if (nextSection.questions && nextSection.questions.length > 0) {
-            foundSection = true;
-            setActiveSection(nextSection.name);
-            setActiveQuestionIndex(0);
+      if (activeQuestionIndex < questions.length - 1) {
+        console.log(`Moving to next question: ${activeQuestionIndex + 1}`);
+        setActiveQuestionIndex(activeQuestionIndex + 1);
+      } else {
+        // Move to next section with questions if available
+        const sectionIndex = exam.sections.findIndex(s => s.name === activeSection);
+        if (sectionIndex < exam.sections.length - 1) {
+          // Find the next section that has questions
+          let nextSectionIndex = sectionIndex + 1;
+          let foundSection = false;
 
-            // Show a message about moving to the next section
+          while (nextSectionIndex < exam.sections.length && !foundSection) {
+            const nextSection = exam.sections[nextSectionIndex];
+            if (nextSection.questions && nextSection.questions.length > 0) {
+              foundSection = true;
+              console.log(`Moving to next section: ${nextSection.name}`);
+              setActiveSection(nextSection.name);
+              setActiveQuestionIndex(0);
+
+              // Show a message about moving to the next section
+              setSnackbar({
+                open: true,
+                message: `Moving to Section ${nextSection.name}`,
+                severity: 'info'
+              });
+            } else {
+              nextSectionIndex++;
+            }
+          }
+
+          if (!foundSection) {
+            // If no section with questions was found, show a message
             setSnackbar({
               open: true,
-              message: `Moving to Section ${nextSection.name}`,
+              message: 'No more sections with questions available',
               severity: 'info'
             });
-          } else {
-            nextSectionIndex++;
           }
-        }
-
-        if (!foundSection) {
-          // If no section with questions was found, show a message
+        } else {
           setSnackbar({
             open: true,
-            message: 'No more sections with questions available',
+            message: 'You have reached the last question',
             severity: 'info'
           });
         }
       }
+    } catch (error) {
+      console.error('Error in handleNextQuestion:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error navigating to next question. Please try again.',
+        severity: 'error'
+      });
     }
   };
 
   const handlePrevQuestion = () => {
-    if (activeQuestionIndex > 0) {
-      setActiveQuestionIndex(activeQuestionIndex - 1);
-    } else {
-      // Move to previous section with questions if available
-      const sectionIndex = exam.sections.findIndex(s => s.name === activeSection);
-      if (sectionIndex > 0) {
-        // Find the previous section that has questions
-        let prevSectionIndex = sectionIndex - 1;
-        let foundSection = false;
+    try {
+      console.log(`Navigating to previous question from index ${activeQuestionIndex}`);
 
-        while (prevSectionIndex >= 0 && !foundSection) {
-          const prevSection = exam.sections[prevSectionIndex];
-          if (prevSection.questions && prevSection.questions.length > 0) {
-            foundSection = true;
-            setActiveSection(prevSection.name);
-            const prevSectionQuestions = prevSection.questions || [];
-            setActiveQuestionIndex(prevSectionQuestions.length - 1);
-
-            // Show a message about moving to the previous section
-            setSnackbar({
-              open: true,
-              message: `Moving to Section ${prevSection.name}`,
-              severity: 'info'
-            });
-          } else {
-            prevSectionIndex--;
-          }
-        }
-
-        if (!foundSection) {
-          // If no section with questions was found, show a message
+      if (activeQuestionIndex > 0) {
+        console.log(`Moving to previous question: ${activeQuestionIndex - 1}`);
+        setActiveQuestionIndex(activeQuestionIndex - 1);
+      } else {
+        // Move to previous section with questions if available
+        if (!exam || !exam.sections) {
+          console.warn('No exam sections available for navigation');
           setSnackbar({
             open: true,
-            message: 'No previous sections with questions available',
+            message: 'No exam sections available',
+            severity: 'warning'
+          });
+          return;
+        }
+
+        const sectionIndex = exam.sections.findIndex(s => s.name === activeSection);
+        if (sectionIndex > 0) {
+          // Find the previous section that has questions
+          let prevSectionIndex = sectionIndex - 1;
+          let foundSection = false;
+
+          while (prevSectionIndex >= 0 && !foundSection) {
+            const prevSection = exam.sections[prevSectionIndex];
+            if (prevSection.questions && prevSection.questions.length > 0) {
+              foundSection = true;
+              console.log(`Moving to previous section: ${prevSection.name}`);
+              setActiveSection(prevSection.name);
+              const prevSectionQuestions = prevSection.questions || [];
+              setActiveQuestionIndex(Math.max(0, prevSectionQuestions.length - 1));
+
+              // Show a message about moving to the previous section
+              setSnackbar({
+                open: true,
+                message: `Moving to Section ${prevSection.name}`,
+                severity: 'info'
+              });
+            } else {
+              prevSectionIndex--;
+            }
+          }
+
+          if (!foundSection) {
+            // If no section with questions was found, show a message
+            setSnackbar({
+              open: true,
+              message: 'No previous sections with questions available',
+              severity: 'info'
+            });
+          }
+        } else {
+          setSnackbar({
+            open: true,
+            message: 'You are at the first question',
             severity: 'info'
           });
         }
       }
+    } catch (error) {
+      console.error('Error in handlePrevQuestion:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error navigating to previous question. Please try again.',
+        severity: 'error'
+      });
     }
   };
 
   // Enhanced handle answer change for all question types
   const handleAnswerChange = (questionId, value, type) => {
+    // Don't allow changing answers if exam is completed or being submitted
+    if (examCompleted || submitting) {
+      console.log('⚠️ Ignoring answer change - exam is completed or being submitted');
+      return;
+    }
 
     // Don't allow changing already submitted answers
     if (answers[questionId]?.answered && answers[questionId]?.savedToServer) {
@@ -1430,7 +1418,454 @@ const ExamInterface = () => {
     }
   };
 
+  // Enhanced exam submission with automatic save of all unsaved answers
+  const handleSubmitExam = useCallback(async () => {
+    // Prevent multiple simultaneous submissions
+    if (submitting || examCompleted) {
+      console.log('⚠️ Submission already in progress or exam already completed, ignoring duplicate request');
+      return;
+    }
 
+    try {
+      setSubmitting(true);
+
+      // Show submitting message
+      setSnackbar({
+        open: true,
+        message: 'Preparing to submit your exam...',
+        severity: 'info'
+      });
+
+      // Validate exam state before submission
+      if (!exam || !exam.sections || exam.sections.length === 0) {
+        throw new Error('Invalid exam data. Please refresh the page and try again.');
+      }
+
+      // Reset any invalid question index before submission to prevent indexing errors
+      // Get current section questions safely
+      let currentSectionQuestions = [];
+      if (exam && exam.sections && exam.sections.length > 0) {
+        const section = exam.sections.find(s => s.name === activeSection);
+        if (section) {
+          currentSectionQuestions = section.questions || [];
+        }
+      }
+
+      if (currentSectionQuestions.length > 0 &&
+          (activeQuestionIndex < 0 || activeQuestionIndex >= currentSectionQuestions.length)) {
+        console.log('Resetting invalid question index before submission');
+        setActiveQuestionIndex(0);
+      }
+
+      // STEP 1: Save ALL unsaved answers (including current question)
+      console.log('🔄 Saving all unsaved answers before submission...');
+
+      // Get all questions from all sections
+      const allQuestions = exam.sections.flatMap(section => section.questions || []);
+
+      // Find all unsaved answers (including current question being worked on)
+      const unsavedAnswers = [];
+
+      // Check all answers in state
+      Object.entries(answers).forEach(([questionId, answer]) => {
+        const question = allQuestions.find(q => q._id === questionId);
+        if (question && answer && (answer.hasChanges || !answer.savedToServer)) {
+          // Check if answer has content
+          const hasContent = answer.textAnswer?.trim() ||
+                           answer.selectedOption ||
+                           answer.matchingAnswers ||
+                           answer.orderingAnswer ||
+                           answer.dragDropAnswer;
+
+          if (hasContent) {
+            unsavedAnswers.push([questionId, answer, question]);
+          }
+        }
+      });
+
+      // Also check current question if it has unsaved content (with safe index checking)
+      // Get current question safely without using the function
+      let currentQuestion = null;
+      if (currentSectionQuestions.length > 0 &&
+          activeQuestionIndex >= 0 &&
+          activeQuestionIndex < currentSectionQuestions.length) {
+        currentQuestion = currentSectionQuestions[activeQuestionIndex];
+      }
+
+      if (currentQuestion && !unsavedAnswers.find(([qId]) => qId === currentQuestion._id)) {
+        const currentAnswer = answers[currentQuestion._id];
+
+        if (currentAnswer) {
+          const hasContent = currentAnswer.textAnswer?.trim() ||
+                           currentAnswer.selectedOption ||
+                           currentAnswer.matchingAnswers ||
+                           currentAnswer.orderingAnswer ||
+                           currentAnswer.dragDropAnswer;
+
+          if (hasContent && (currentAnswer.hasChanges || !currentAnswer.savedToServer)) {
+            unsavedAnswers.push([currentQuestion._id, currentAnswer, currentQuestion]);
+          }
+        }
+      }
+
+      if (unsavedAnswers.length > 0) {
+        setSnackbar({
+          open: true,
+          message: `Saving ${unsavedAnswers.length} unsaved answers before submitting...`,
+          severity: 'info'
+        });
+
+        console.log(`Found ${unsavedAnswers.length} unsaved answers. Saving them now...`);
+
+        // Save all unsaved answers in parallel for speed
+        const savePromises = unsavedAnswers.map(async ([questionId, answer, question]) => {
+          try {
+            // Determine what to save based on question type and answer content
+            let valueToSave = null;
+            let questionType = question.type;
+
+            if (answer.textAnswer?.trim()) {
+              valueToSave = answer.textAnswer.trim();
+              questionType = questionType || 'open-ended';
+            } else if (answer.selectedOption) {
+              valueToSave = answer.selectedOption;
+              questionType = questionType || 'multiple-choice';
+            } else if (answer.matchingAnswers) {
+              valueToSave = answer.matchingAnswers;
+              questionType = 'matching';
+            } else if (answer.orderingAnswer) {
+              valueToSave = answer.orderingAnswer;
+              questionType = 'ordering';
+            } else if (answer.dragDropAnswer) {
+              valueToSave = answer.dragDropAnswer;
+              questionType = 'drag-drop';
+            }
+
+            if (valueToSave !== null) {
+              console.log(`💾 Saving ${questionType} answer for question ${questionId}`);
+              await saveAnswerToServer(questionId, valueToSave, questionType);
+              console.log(`✅ Successfully saved answer for question ${questionId}`);
+              return { questionId, success: true };
+            } else {
+              console.warn(`⚠️ No valid content to save for question ${questionId}`);
+              return { questionId, success: false, reason: 'No content' };
+            }
+          } catch (error) {
+            console.error(`❌ Error saving answer ${questionId}:`, error);
+            return { questionId, success: false, error: error.message };
+          }
+        });
+
+        // Wait for all saves to complete (with timeout)
+        try {
+          const saveResults = await Promise.allSettled(savePromises);
+          const successful = saveResults.filter(result =>
+            result.status === 'fulfilled' && result.value.success
+          ).length;
+          const failed = saveResults.length - successful;
+
+          console.log(`💾 Save results: ${successful} successful, ${failed} failed`);
+
+          if (failed > 0) {
+            console.warn('Some answers failed to save, but continuing with submission...');
+            setSnackbar({
+              open: true,
+              message: `${successful} answers saved, ${failed} failed. Continuing with submission...`,
+              severity: 'warning'
+            });
+          } else {
+            console.log('✅ All unsaved answers saved successfully');
+            setSnackbar({
+              open: true,
+              message: `All ${successful} unsaved answers saved successfully!`,
+              severity: 'success'
+            });
+          }
+        } catch (error) {
+          console.error('Error in parallel save operation:', error);
+          setSnackbar({
+            open: true,
+            message: 'Some answers may not have saved. Continuing with submission...',
+            severity: 'warning'
+          });
+        }
+
+        // Small delay to ensure saves are processed
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        console.log('✅ No unsaved answers found, proceeding with submission');
+      }
+
+      // STEP 2: Validate that we have at least some answers
+      console.log('🔍 Validating answers before submission...');
+
+      const totalAnswers = Object.keys(answers).length;
+      const answeredQuestions = Object.values(answers).filter(answer =>
+        answer.answered ||
+        answer.textAnswer?.trim() ||
+        answer.selectedOption ||
+        answer.matchingAnswers ||
+        answer.orderingAnswer ||
+        answer.dragDropAnswer
+      ).length;
+
+      console.log(`📊 Answer validation: ${answeredQuestions}/${totalAnswers} questions have answers`);
+
+      if (answeredQuestions === 0) {
+        throw new Error('No answers found. Please answer at least one question before submitting.');
+      }
+
+      // STEP 3: Additional validation for selective answering
+      if (exam.allowSelectiveAnswering) {
+        // Safely get all questions from exam sections
+        let allQuestions = [];
+        try {
+          allQuestions = exam.sections.flatMap(section => section.questions || []);
+        } catch (error) {
+          console.error('Error getting questions for selective answering validation:', error);
+          throw new Error('Unable to validate selective answering. Please refresh the page and try again.');
+        }
+
+        // Debug: Log current selection state before validation
+        console.log('🔍 Debug: Current selection state before validation:');
+        console.log('  selectedQuestions:', selectedQuestions);
+        console.log('  exam.allowSelectiveAnswering:', exam.allowSelectiveAnswering);
+        console.log('  exam.sectionBRequiredQuestions:', exam.sectionBRequiredQuestions);
+        console.log('  exam.sectionCRequiredQuestions:', exam.sectionCRequiredQuestions);
+
+        // Get all questions in sections B and C
+        const sectionBQuestions = allQuestions.filter(q => q.section === 'B');
+        const sectionCQuestions = allQuestions.filter(q => q.section === 'C');
+
+        // Count selected questions in each section
+        const selectedBQuestions = sectionBQuestions.filter(q => selectedQuestions[q._id] === true);
+        const selectedCQuestions = sectionCQuestions.filter(q => selectedQuestions[q._id] === true);
+
+        const requiredB = exam.sectionBRequiredQuestions || 3;
+        const requiredC = exam.sectionCRequiredQuestions || 1;
+
+        console.log(`📋 Selective answering validation:`);
+        console.log(`  Section B: ${selectedBQuestions.length}/${requiredB} selected (${sectionBQuestions.length} total)`);
+        console.log(`  Section C: ${selectedCQuestions.length}/${requiredC} selected (${sectionCQuestions.length} total)`);
+        console.log(`  Selected questions state:`, selectedQuestions);
+
+        // Log detailed information for debugging
+        console.log('🔍 Detailed selection analysis:');
+        sectionBQuestions.forEach(q => {
+          console.log(`  Section B Question ${q._id}: selected = ${selectedQuestions[q._id]}`);
+        });
+        sectionCQuestions.forEach(q => {
+          console.log(`  Section C Question ${q._id}: selected = ${selectedQuestions[q._id]}`);
+        });
+
+        // Only validate if there are questions in the section
+        if (sectionBQuestions.length > 0 && selectedBQuestions.length < requiredB) {
+          throw new Error(`Section B requires ${requiredB} questions to be selected. You have selected ${selectedBQuestions.length}. Please go back and select the required questions.`);
+        }
+
+        if (sectionCQuestions.length > 0 && selectedCQuestions.length < requiredC) {
+          throw new Error(`Section C requires ${requiredC} questions to be selected. You have selected ${selectedCQuestions.length}. Please go back and select the required questions.`);
+        }
+      }
+
+      // Now submit the exam with enhanced retry logic
+      setSnackbar({
+        open: true,
+        message: 'Submitting your exam...',
+        severity: 'info'
+      });
+
+      console.log(`Submitting exam ${id} for completion (${answeredQuestions}/${totalAnswers} questions answered)`);
+
+      // Enhanced retry logic with exponential backoff
+      let retries = 3;
+      let success = false;
+      let response = null;
+      let lastError = null;
+
+      while (retries > 0 && !success) {
+        try {
+          console.log(`🚀 Submission attempt ${4 - retries} of 3...`);
+
+          // Add timeout to prevent hanging - reduced for faster submissions
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Submission timeout after 20 seconds')), 20000);
+          });
+
+          // Log the submission request details
+          console.log(`📤 Submitting to: /exam/${id}/complete`);
+          console.log(`📊 Submission data: ${answeredQuestions}/${totalAnswers} questions answered`);
+
+          response = await Promise.race([
+            api.post(`/exam/${id}/complete`),
+            timeoutPromise
+          ]);
+
+          success = true;
+          console.log('✅ Exam submitted successfully:', response.data);
+        } catch (submitError) {
+          lastError = submitError;
+
+          // Enhanced error logging
+          console.error(`❌ Submission attempt ${4 - retries} failed:`, {
+            error: submitError.message,
+            status: submitError.response?.status,
+            statusText: submitError.response?.statusText,
+            data: submitError.response?.data,
+            retriesLeft: retries - 1
+          });
+
+          retries--;
+
+          if (retries > 0) {
+            // Exponential backoff: wait longer between retries
+            const waitTime = (4 - retries) * 2000; // 2s, 4s, 6s
+            console.log(`⏳ Waiting ${waitTime/1000} seconds before retry...`);
+
+            setSnackbar({
+              open: true,
+              message: `Submission failed. Retrying in ${waitTime/1000} seconds... (${retries} attempts left)`,
+              severity: 'warning'
+            });
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          } else {
+            // Last attempt failed, log final error details
+            console.error('💥 All submission attempts failed. Final error:', {
+              message: submitError.message,
+              status: submitError.response?.status,
+              data: submitError.response?.data,
+              stack: submitError.stack
+            });
+          }
+        }
+      }
+
+      if (!success) {
+        throw lastError || new Error('Failed to submit exam after multiple attempts');
+      }
+
+      // Validate response data
+      if (!response.data) {
+        throw new Error('Invalid response from server. Please contact your administrator.');
+      }
+
+      setExamCompleted(true);
+      setExamResult(response.data);
+      setSubmitting(false);
+
+      // Show success message with score if available
+      const successMessage = response.data.percentage !== undefined
+        ? `Exam submitted successfully! Score: ${response.data.percentage.toFixed(1)}%`
+        : 'Exam submitted successfully! Your results are being processed.';
+
+      setSnackbar({
+        open: true,
+        message: successMessage,
+        severity: 'success'
+      });
+
+    } catch (err) {
+      console.error('Error submitting exam:', err);
+      setSubmitting(false);
+
+      // Enhanced error handling with detailed messages and debugging info
+      let errorMessage = 'Failed to submit exam. Please try again.';
+      let showDebugInfo = false;
+
+      console.error('🚨 Exam submission failed:', {
+        message: err.message,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        stack: err.stack
+      });
+
+      if (err.message.includes('timeout')) {
+        errorMessage = 'Submission timed out. Please check your internet connection and try again.';
+      } else if (err.message.includes('Invalid exam data')) {
+        errorMessage = err.message;
+      } else if (err.message.includes('No answers found')) {
+        errorMessage = err.message;
+      } else if (err.message.includes('Section B requires') || err.message.includes('Section C requires')) {
+        errorMessage = err.message;
+      } else if (err.response) {
+        const errorData = err.response.data;
+        switch (err.response.status) {
+          case 400:
+            if (errorData?.errors && Array.isArray(errorData.errors)) {
+              errorMessage = `Submission validation failed: ${errorData.errors.join(', ')}`;
+            } else if (errorData?.message) {
+              errorMessage = errorData.message;
+            } else {
+              errorMessage = 'Invalid submission data. Please check your answers and try again.';
+            }
+            showDebugInfo = true;
+            break;
+          case 404:
+            errorMessage = 'Exam session not found. Please refresh the page and try again.';
+            break;
+          case 409:
+            if (errorData?.alreadyCompleted) {
+              // Exam was already completed, treat as success
+              console.log('✅ Exam was already completed, showing results:', errorData);
+              setExamCompleted(true);
+              setExamResult(errorData);
+              setSubmitting(false);
+
+              // Show success message with score if available
+              const successMessage = errorData.percentage !== undefined
+                ? `Exam was already submitted! Your score: ${errorData.percentage.toFixed(1)}%`
+                : 'Exam was already submitted successfully!';
+
+              setSnackbar({
+                open: true,
+                message: successMessage,
+                severity: 'success'
+              });
+              return; // Exit early, don't show error
+            }
+            errorMessage = 'Exam has already been submitted or is no longer available.';
+            break;
+          case 429:
+            errorMessage = 'Submission already in progress. Please wait and do not click submit again.';
+            break;
+          case 500:
+            errorMessage = 'Server error. Please try again later or contact your administrator.';
+            showDebugInfo = true;
+            break;
+          default:
+            errorMessage = `Submission failed (Error ${err.response.status}). Please try again.`;
+            showDebugInfo = true;
+        }
+      } else if (err.message.includes('Network Error') || err.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network connection error. Please check your internet connection and try again.';
+      } else {
+        errorMessage = `Unexpected error: ${err.message}. Please try again or contact your administrator.`;
+        showDebugInfo = true;
+      }
+
+      // Add debug information for administrators
+      if (showDebugInfo && process.env.NODE_ENV === 'development') {
+        errorMessage += ` (Debug: ${err.response?.status || 'No status'} - ${err.message})`;
+      }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: 'error'
+      });
+
+      // Only set critical error state for server errors
+      if (err.response && err.response.status >= 500) {
+        setError('Server error. Please try again later or contact your administrator.');
+      }
+    }
+  }, [id, exam, answers, selectedQuestions, submitting, examCompleted, activeSection, activeQuestionIndex, saveAnswerToServer]);
+
+  // Assign the handleSubmitExam function to the ref so it can be called from other effects
+  useEffect(() => {
+    handleSubmitExamRef.current = handleSubmitExam;
+  }, [handleSubmitExam]);
 
   // Handle question selection for sections B and C
   const handleQuestionSelection = async (questionId) => {
@@ -2073,12 +2508,16 @@ const ExamInterface = () => {
             <Button
               variant="contained"
               color="primary"
-              onClick={() => setConfirmSubmit(true)}
+              onClick={() => {
+                if (!submitting && !examCompleted) {
+                  setConfirmSubmit(true);
+                }
+              }}
               startIcon={<Send />}
-              disabled={submitting}
+              disabled={submitting || examCompleted}
               sx={{ borderRadius: 0 }} // Remove rounded corners
             >
-              Submit Exam
+              {submitting ? 'Submitting...' : 'Submit Exam'}
             </Button>
           </Grid>
         </Grid>
@@ -3324,13 +3763,15 @@ const ExamInterface = () => {
           </Button>
           <Button
             onClick={() => {
-              setConfirmSubmit(false);
-              handleSubmitExam();
+              if (!submitting && !examCompleted) {
+                setConfirmSubmit(false);
+                handleSubmitExam();
+              }
             }}
+            disabled={submitting || examCompleted}
             color="primary"
             variant="contained"
             autoFocus
-            disabled={submitting}
           >
             {submitting ? <CircularProgress size={24} /> : 'Submit'}
           </Button>
