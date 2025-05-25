@@ -120,7 +120,18 @@ const ResultSchema = new mongoose.Schema({
         'fallback_expansion_match',
         'fallback_semantic_match',
         'fallback_keyword_matching',
-        'not_selected'
+        'not_selected',
+        // New fast grading methods
+        'fast_grading',
+        'fast_multiple_choice',
+        'fast_ai_grading',
+        'fast_similarity',
+        'fast_keywords',
+        'no_selection',
+        'unsupported_type',
+        'fallback_error',
+        'exact_match',
+        'error'
       ],
       default: 'enhanced_grading'
     },

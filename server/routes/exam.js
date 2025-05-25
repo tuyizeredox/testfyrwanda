@@ -130,7 +130,7 @@ router.get('/result/:id', auth, getExamResult); // Both students and admins can 
 router.get('/:id', getExamById);
 router.post('/:id/start', isStudent, startExam);
 router.post('/:id/answer', isStudent, submitAnswer);
-router.post('/:id/complete', isStudent, completeExam);
+router.post('/:id/complete', isStudent, completeExam); // New fast submission system
 router.post('/:id/select-question', auth, isStudent, selectQuestion); // Ensure auth middleware is applied
 router.post('/:id/enable-selective-answering', isAdmin, enableSelectiveAnswering);
 
