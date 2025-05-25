@@ -93,23 +93,55 @@ router.post('/ai-grade/:resultId', isAdmin, triggerAIGrading);
 router.get('/:id/debug', isAdmin, debugExamContent);
 router.post('/:id/reset-questions', isAdmin, resetExamQuestions);
 
-// Regrading routes
+// Debug routes (must come before parameterized routes)
+router.get('/test-routes', (req, res) => {
+  res.json({
+    message: 'Exam routes are working!',
+    timestamp: new Date().toISOString(),
+    availableRoutes: [
+      'GET /test-routes',
+      'POST /test-select-question',
+      'POST /:id/start',
+      'POST /:id/answer',
+      'POST /:id/complete',
+      'POST /:id/select-question',
+      'GET /result/:id'
+    ]
+  });
+});
+
+// Test route specifically for question selection
+router.post('/test-select-question', auth, (req, res) => {
+  console.log('Test select question route called');
+  console.log('User:', req.user?._id);
+  console.log('Body:', req.body);
+  res.json({
+    message: 'Question selection route is accessible',
+    user: req.user?._id,
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Regrading routes (specific routes before parameterized ones)
 router.post('/regrade/:resultId', auth, regradeExamResult); // Allow both students and admins to request regrading
 router.post('/regrade-all', isAdmin, regradeAllExams);
 router.post('/fix-results', isAdmin, fixExistingResults); // Fix existing results with incorrect scores
 router.get('/debug-result/:resultId', isAdmin, debugResult); // Debug specific result
 router.post('/comprehensive-ai-grading', isAdmin, comprehensiveAIGrading); // Comprehensive AI grading
-router.post('/:id/enable-selective-answering', isAdmin, enableSelectiveAnswering);
 
 // Routes for both admin and students
 router.get('/', getExams);
-router.get('/:id', getExamById);
 
-// Student routes
+// Student routes (specific routes before parameterized ones)
+router.get('/result/:id', auth, getExamResult); // Both students and admins can view results
+
+// Parameterized routes (must come last to avoid conflicts)
+router.get('/:id', getExamById);
 router.post('/:id/start', isStudent, startExam);
 router.post('/:id/answer', isStudent, submitAnswer);
 router.post('/:id/complete', isStudent, completeExam);
 router.post('/:id/select-question', isStudent, selectQuestion); // New route for selective answering
-router.get('/result/:id', auth, getExamResult); // Both students and admins can view results
+router.post('/:id/enable-selective-answering', isAdmin, enableSelectiveAnswering);
 
 module.exports = router;

@@ -50,18 +50,46 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      try {
-        // Try to verify the token
-        await api.get('/auth/verify');
-        // If verification succeeds, retry the original request
-        return api(originalRequest);
-      } catch (verifyError) {
-        console.log('Authentication failed - redirecting to login');
+      // Don't try to verify if the failing request was already a verify request
+      // This prevents infinite loops
+      if (originalRequest.url && originalRequest.url.includes('/auth/verify')) {
+        console.log('Token verification failed - clearing auth data');
         // Clear auth data
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Redirect to login page
-        window.location.href = '/login';
+        // Only redirect if we're not already on login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+
+      try {
+        // Try to verify the token with a fresh axios instance to avoid interceptor loops
+        const verifyResponse = await axios.get(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/verify`,
+          {
+            headers: {
+              'Authorization': originalRequest.headers.Authorization,
+              'Content-Type': 'application/json'
+            },
+            timeout: 5000
+          }
+        );
+
+        // If verification succeeds, retry the original request
+        if (verifyResponse.status === 200) {
+          return api(originalRequest);
+        }
+      } catch (verifyError) {
+        console.log('Authentication failed - clearing auth data');
+        // Clear auth data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        // Only redirect if we're not already on login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
 

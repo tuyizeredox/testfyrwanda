@@ -587,13 +587,19 @@ const ExamInterface = () => {
             let isSelected = true;
 
             if (answer.isSelected !== undefined) {
-              // Use the saved selection state if available
+              // Use the saved selection state from the backend
               isSelected = answer.isSelected;
+              console.log(`Using backend selection state for question ${answer.question._id}: ${isSelected}`);
             } else if (selectiveAnswering && (questionSection === 'B' || questionSection === 'C')) {
-              // Get all questions in this section
+              // Fallback: calculate selection state using the same logic as backend
               const sectionQuestions = examRes.data.sections
                 .find(s => s.name === questionSection)
                 ?.questions || [];
+
+              // Sort questions by ID for consistency with backend
+              const sortedSectionQuestions = [...sectionQuestions].sort((a, b) =>
+                a._id.localeCompare(b._id)
+              );
 
               // Get required questions count for this section
               const requiredCount = questionSection === 'B'
@@ -601,10 +607,11 @@ const ExamInterface = () => {
                 : (examRes.data.sectionCRequiredQuestions || 1);
 
               // Get the index of this question in its section
-              const questionIndexInSection = sectionQuestions.findIndex(q => q._id === answer.question._id);
+              const questionIndexInSection = sortedSectionQuestions.findIndex(q => q._id === answer.question._id);
 
-              // Select only the first N questions by default
+              // Select only the first N questions by default (same logic as backend)
               isSelected = questionIndexInSection < requiredCount;
+              console.log(`Fallback selection for question ${answer.question._id} in section ${questionSection}: index ${questionIndexInSection}/${sortedSectionQuestions.length}, required ${requiredCount}, selected: ${isSelected}`);
             }
 
             initialAnswers[answer.question._id] = {
@@ -619,6 +626,9 @@ const ExamInterface = () => {
 
           setAnswers(initialAnswers);
           setSelectedQuestions(initialSelectedQuestions);
+
+          // Log the restored selection state for debugging
+          console.log('Restored selection state:', initialSelectedQuestions);
         } else {
           // No session, start a new one
           try {
@@ -640,15 +650,23 @@ const ExamInterface = () => {
 
               const questionSection = question ? question.section : null;
 
-              // For sections B and C with selective answering, default to selected for the first N questions
-              // where N is the required number of questions for that section
+              // Use the selection state from the backend (should always be available for new sessions)
               let isSelected = true;
 
-              if (selectiveAnswering && (questionSection === 'B' || questionSection === 'C')) {
-                // Get all questions in this section
+              if (answer.isSelected !== undefined) {
+                // Backend has already initialized the selection state
+                isSelected = answer.isSelected;
+                console.log(`New session: Using backend selection state for question ${answer.question._id}: ${isSelected}`);
+              } else if (selectiveAnswering && (questionSection === 'B' || questionSection === 'C')) {
+                // Fallback: calculate selection state using the same logic as backend
                 const sectionQuestions = examRes.data.sections
                   .find(s => s.name === questionSection)
                   ?.questions || [];
+
+                // Sort questions by ID for consistency with backend
+                const sortedSectionQuestions = [...sectionQuestions].sort((a, b) =>
+                  a._id.localeCompare(b._id)
+                );
 
                 // Get required questions count for this section
                 const requiredCount = questionSection === 'B'
@@ -656,10 +674,11 @@ const ExamInterface = () => {
                   : (examRes.data.sectionCRequiredQuestions || 1);
 
                 // Get the index of this question in its section
-                const questionIndexInSection = sectionQuestions.findIndex(q => q._id === answer.question._id);
+                const questionIndexInSection = sortedSectionQuestions.findIndex(q => q._id === answer.question._id);
 
-                // Select only the first N questions by default
+                // Select only the first N questions by default (same logic as backend)
                 isSelected = questionIndexInSection < requiredCount;
+                console.log(`New session fallback: Auto-selecting question ${answer.question._id} in section ${questionSection}: index ${questionIndexInSection}/${sortedSectionQuestions.length}, required ${requiredCount}, selected: ${isSelected}`);
               }
 
               initialAnswers[answer.question._id] = {
@@ -674,6 +693,9 @@ const ExamInterface = () => {
 
             setAnswers(initialAnswers);
             setSelectedQuestions(initialSelectedQuestions);
+
+            // Log the initial selection state for debugging
+            console.log('Initial selection state:', initialSelectedQuestions);
           } catch (startErr) {
             // Handle locked exam error from start endpoint
             if (startErr.response && startErr.response.status === 403) {
@@ -1412,7 +1434,30 @@ const ExamInterface = () => {
 
   // Handle question selection for sections B and C
   const handleQuestionSelection = async (questionId) => {
-    if (!selectiveAnswering) return;
+    console.log('=== QUESTION SELECTION TRIGGERED ===');
+    console.log('Question ID:', questionId);
+    console.log('Selective answering enabled:', selectiveAnswering);
+    console.log('Current selectedQuestions state:', selectedQuestions);
+
+    if (!selectiveAnswering) {
+      console.log('❌ Selective answering is not enabled');
+      setSnackbar({
+        open: true,
+        message: 'Selective answering is not enabled for this exam',
+        severity: 'info'
+      });
+      return;
+    }
+
+    if (!exam || !exam.sections) {
+      console.error('❌ Exam data not available');
+      setSnackbar({
+        open: true,
+        message: 'Exam data not available. Please refresh the page.',
+        severity: 'error'
+      });
+      return;
+    }
 
     // Find the question in the exam
     const question = exam.sections
@@ -1420,6 +1465,12 @@ const ExamInterface = () => {
       .find(q => q._id === questionId);
 
     if (!question) {
+      console.error('Question not found:', questionId);
+      setSnackbar({
+        open: true,
+        message: 'Question not found. Please refresh the page.',
+        severity: 'error'
+      });
       return;
     }
 
@@ -1433,28 +1484,47 @@ const ExamInterface = () => {
       return;
     }
 
-    // Get all questions in this section
+    // Get all questions in this section (sorted for consistency)
     const sectionQuestions = exam.sections
       .find(s => s.name === question.section)
       ?.questions || [];
 
-    // Toggle selection
-    const newIsSelected = !selectedQuestions[questionId];
+    if (sectionQuestions.length === 0) {
+      console.error(`No questions found in section ${question.section}`);
+      return;
+    }
 
-    // Count currently selected questions in this section (excluding the current question if we're deselecting)
-    const selectedInSection = sectionQuestions
-      .filter(q => q._id !== questionId ? selectedQuestions[q._id] : newIsSelected)
+    // Current selection status
+    const currentIsSelected = selectedQuestions[questionId] === true;
+    const newIsSelected = !currentIsSelected;
+
+    // Count currently selected questions in this section
+    const currentlySelectedInSection = sectionQuestions
+      .filter(q => selectedQuestions[q._id] === true)
       .length;
+
+    // Calculate what the count would be after this change
+    const selectedAfterChange = newIsSelected
+      ? currentlySelectedInSection + 1
+      : currentlySelectedInSection - 1;
 
     // Get required questions count for this section with fallbacks
     const requiredCount = question.section === 'B'
       ? (exam.sectionBRequiredQuestions || 3)
       : (exam.sectionCRequiredQuestions || 1);
 
-
+    console.log(`Section ${question.section} selection change:`, {
+      questionId,
+      currentIsSelected,
+      newIsSelected,
+      currentlySelectedInSection,
+      selectedAfterChange,
+      requiredCount,
+      totalInSection: sectionQuestions.length
+    });
 
     // Check if we're trying to deselect when we're at the minimum
-    if (!newIsSelected && selectedInSection < requiredCount) {
+    if (!newIsSelected && selectedAfterChange < requiredCount) {
       setSnackbar({
         open: true,
         message: `You must select at least ${requiredCount} questions in Section ${question.section}`,
@@ -1471,23 +1541,61 @@ const ExamInterface = () => {
 
     // Update on the server
     try {
-      await api.post(`/api/exam/${id}/select-question`, {
+      console.log('🚀 Sending selection request to server...');
+      console.log('Request details:', {
+        url: `/api/exam/${id}/select-question`,
+        questionId,
+        isSelected: newIsSelected,
+        examId: id,
+        baseURL: api.defaults.baseURL
+      });
+
+      // Validate exam ID format before making the request
+      if (!id || !id.match(/^[0-9a-fA-F]{24}$/)) {
+        throw new Error('Invalid exam ID format. Please refresh the page.');
+      }
+
+      const response = await api.post(`/exam/${id}/select-question`, {
         questionId,
         isSelected: newIsSelected
       });
 
-      // Show success message
-      setSnackbar({
-        open: true,
-        message: newIsSelected
-          ? `Question added to your selection`
-          : `Question removed from your selection`,
-        severity: 'success'
-      });
+      console.log('✅ Selection update response:', response.data);
+
+      // Verify the response indicates success
+      if (response.data.success !== false) {
+        // Show success message with clear feedback
+        const sectionName = question.section;
+        const requiredCount = question.section === 'B'
+          ? (exam.sectionBRequiredQuestions || 3)
+          : (exam.sectionCRequiredQuestions || 1);
+
+        setSnackbar({
+          open: true,
+          message: newIsSelected
+            ? `✅ Question ${activeQuestionIndex + 1} selected! (${selectedAfterChange}/${sectionQuestions.length} selected in Section ${sectionName}, ${requiredCount} required)`
+            : `⭕ Question ${activeQuestionIndex + 1} deselected (${selectedAfterChange}/${sectionQuestions.length} selected in Section ${sectionName}, ${requiredCount} required)`,
+          severity: 'success'
+        });
+        console.log('✅ Question selection updated successfully');
+      } else {
+        throw new Error(response.data.message || 'Server returned unsuccessful response');
+      }
 
 
     } catch (error) {
-      console.error('Error updating question selection:', error);
+      console.error('❌ Error updating question selection:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data
+        }
+      });
 
       // Revert the change if the server update fails
       setSelectedQuestions(prev => ({
@@ -1496,11 +1604,55 @@ const ExamInterface = () => {
       }));
 
       // Show error message with detailed server message if available
+      const errorData = error.response?.data;
+      const errorMessage = errorData?.message || 'Failed to update question selection';
+      const errorCode = errorData?.error || errorData?.errorCode;
+      const statusInfo = error.response?.status ? ` [${error.response.status}]` : '';
+
+      let userFriendlyMessage = errorMessage;
+
+      // Provide user-friendly messages for specific error codes
+      if (errorCode === 'QUESTION_NOT_FOUND') {
+        userFriendlyMessage = 'Question not found. Please refresh the page and try again.';
+      } else if (errorCode === 'ANSWER_NOT_FOUND') {
+        userFriendlyMessage = 'Question not found in your exam session. Please refresh the page.';
+      } else if (errorCode === 'SAVE_FAILED') {
+        userFriendlyMessage = 'Failed to save your selection. Please check your connection and try again.';
+      } else if (error.response?.status === 400) {
+        userFriendlyMessage = errorMessage; // Use server message for validation errors
+      } else if (error.response?.status === 404) {
+        if (error.config?.url?.includes('/select-question')) {
+          userFriendlyMessage = 'Question selection feature is not available on this server. Please contact your administrator.';
+        } else {
+          userFriendlyMessage = 'Resource not found. Please refresh the page and try again.';
+        }
+      } else if (error.response?.status === 401) {
+        userFriendlyMessage = 'You are not authorized. Please log in again.';
+      } else if (error.response?.status === 403) {
+        userFriendlyMessage = 'You do not have permission to perform this action.';
+      } else if (error.response?.status >= 500) {
+        userFriendlyMessage = 'Server error occurred. Please try again in a moment.';
+      }
+
       setSnackbar({
         open: true,
-        message: error.response?.data?.message || 'Failed to update question selection',
+        message: `❌ ${userFriendlyMessage}${statusInfo}`,
         severity: 'error'
       });
+
+      console.error('Detailed error info:', {
+        userFriendlyMessage,
+        originalMessage: errorMessage,
+        errorCode,
+        status: error.response?.status,
+        questionId,
+        examId: id
+      });
+
+      // Log additional error details for debugging
+      if (error.response?.data) {
+        console.error('Server error details:', error.response.data);
+      }
     }
   };
 
@@ -1824,48 +1976,26 @@ const ExamInterface = () => {
               </Typography>
             </Box>
           </Box>
-          <Typography variant="body2" sx={{ mt: 1, fontWeight: 'medium' }}>
-            To select/deselect questions: Hold SHIFT and click on a question number, or right-click on a question number.
+          <Typography variant="body2" sx={{ mt: 1, fontWeight: 'medium', color: 'info.dark' }}>
+            💡 <strong>How to select/deselect questions:</strong>
           </Typography>
-        </Paper>
-      )}
-
-      {/* Selective Answering Banner */}
-      {selectiveAnswering && (
-        <Paper
-          elevation={2}
-          sx={{
-            p: 2,
-            mb: 3,
-            borderRadius: 0,
-            bgcolor: 'info.lighter',
-            borderLeft: '4px solid',
-            borderColor: 'info.main',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Typography variant="h6" fontWeight="bold" color="info.main">
-              Selective Answering Enabled
-            </Typography>
-          </Box>
-          <Typography variant="body1" sx={{ mt: 1 }}>
-            In this exam, you can choose which questions to answer in Sections B and C:
-          </Typography>
-          <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+          <Box component="ul" sx={{ mt: 1, pl: 3, mb: 0 }}>
             <Box component="li">
               <Typography variant="body2">
-                <strong>Section B:</strong> Select any {exam?.sectionBRequiredQuestions || '?'} questions to answer
+                <strong>Method 1:</strong> Hold <kbd style={{ padding: '2px 6px', backgroundColor: '#f5f5f5', borderRadius: '3px', fontFamily: 'monospace' }}>SHIFT</kbd> and click on a question number
               </Typography>
             </Box>
             <Box component="li">
               <Typography variant="body2">
-                <strong>Section C:</strong> Select any {exam?.sectionCRequiredQuestions || '?'} questions to answer
+                <strong>Method 2:</strong> Right-click on a question number
+              </Typography>
+            </Box>
+            <Box component="li">
+              <Typography variant="body2">
+                <strong>Method 3:</strong> Click the selection chip above each question
               </Typography>
             </Box>
           </Box>
-          <Typography variant="body2" sx={{ mt: 1, fontWeight: 'medium' }}>
-            To select/deselect questions: Hold SHIFT and click on a question number, or right-click on a question number.
-          </Typography>
         </Paper>
       )}
 
@@ -2048,25 +2178,49 @@ const ExamInterface = () => {
                   (question.section === 'B' || question.section === 'C');
 
                 // Determine if this question is selected for answering
-                const isSelected = !isSelectiveSection || selectedQuestions[question._id];
+                // For non-selective sections (A), always selected
+                // For selective sections (B, C), check the selectedQuestions state
+                const isSelected = isSelectiveSection
+                  ? selectedQuestions[question._id] === true
+                  : true;
 
                 // Determine chip color based on selection and answer status
                 let chipColor = 'default';
+                let chipVariant = 'outlined';
+
                 if (answers[question._id]?.answered) {
+                  // Question has been answered
                   chipColor = 'success';
+                  chipVariant = 'filled';
                 } else if (isSelectiveSection) {
-                  chipColor = isSelected ? 'primary' : 'default';
+                  // Selective section - show selection status
+                  if (isSelected) {
+                    chipColor = 'primary';
+                    chipVariant = 'filled';
+                  } else {
+                    chipColor = 'default';
+                    chipVariant = 'outlined';
+                  }
+                } else {
+                  // Non-selective section (always required)
+                  chipColor = 'secondary';
+                  chipVariant = 'filled';
                 }
 
                 return (
                   <Tooltip
                     key={question._id}
-                    title={isSelectiveSection
-                      ? isSelected
-                        ? "Selected for answering (Shift+click or right-click to deselect)"
-                        : "Not selected (Shift+click or right-click to select)"
-                      : "Required question"}
+                    title={
+                      answers[question._id]?.answered
+                        ? "✅ Question answered"
+                        : isSelectiveSection
+                        ? isSelected
+                          ? "✅ Selected for answering • Shift+click or right-click to deselect"
+                          : "⭕ Not selected • Shift+click or right-click to select"
+                        : "📝 Required question"
+                    }
                     arrow
+                    placement="top"
                   >
                     <Chip
                       label={index + 1}
@@ -2088,28 +2242,36 @@ const ExamInterface = () => {
                         }
                       }}
                       color={chipColor}
-                      variant={activeQuestionIndex === index ? 'filled' : 'outlined'}
+                      variant={activeQuestionIndex === index ? 'filled' : chipVariant}
                       icon={isSelectiveSection
                         ? isSelected
-                          ? <CheckCircle fontSize="small" color="success" />
-                          : <RadioButtonUnchecked fontSize="small" color="disabled" />
+                          ? <CheckCircle fontSize="small" />
+                          : <RadioButtonUnchecked fontSize="small" />
+                        : answers[question._id]?.answered
+                        ? <CheckCircle fontSize="small" />
                         : null}
                       sx={{
                         minWidth: 40,
                         fontWeight: 'bold',
-                        transition: 'all 0.2s ease',
-                        transform: activeQuestionIndex === index ? 'scale(1.1)' : 'scale(1)',
+                        transition: 'all 0.3s ease',
+                        transform: activeQuestionIndex === index ? 'scale(1.15)' : 'scale(1)',
+                        border: activeQuestionIndex === index ? '2px solid' : undefined,
+                        borderColor: activeQuestionIndex === index ? 'primary.main' : undefined,
                         ...(isSelectiveSection && !isSelected && {
-                          opacity: 0.6,
-                          border: '1px dashed',
-                          textDecoration: 'line-through',
+                          opacity: 0.7,
+                          filter: 'grayscale(0.3)',
                         }),
                         ...(isSelectiveSection && {
                           cursor: 'pointer',
                           '&:hover': {
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                            transform: 'translateY(-2px)'
+                            boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                            transform: activeQuestionIndex === index ? 'scale(1.15)' : 'scale(1.05)',
+                            filter: 'none'
                           }
+                        }),
+                        // Add visual emphasis for answered questions
+                        ...(answers[question._id]?.answered && {
+                          boxShadow: '0 2px 8px rgba(76, 175, 80, 0.3)',
                         })
                       }}
                     />
@@ -2289,6 +2451,48 @@ const ExamInterface = () => {
                           </Box>
                         </Box>
                       )}
+
+                      {/* Selection Summary for Selective Answering */}
+                      {selectiveAnswering && (
+                        <Box sx={{ mt: 2, p: 2, bgcolor: 'info.lighter', borderRadius: 1 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" color="info.main" gutterBottom>
+                            📊 Selection Summary
+                          </Typography>
+                          <Grid container spacing={2}>
+                            {['B', 'C'].map(sectionName => {
+                              const sectionQuestions = exam.sections
+                                .find(s => s.name === sectionName)
+                                ?.questions || [];
+                              const selectedCount = sectionQuestions
+                                .filter(q => selectedQuestions[q._id] === true)
+                                .length;
+                              const requiredCount = sectionName === 'B'
+                                ? (exam.sectionBRequiredQuestions || 3)
+                                : (exam.sectionCRequiredQuestions || 1);
+                              const isComplete = selectedCount >= requiredCount;
+
+                              return (
+                                <Grid item xs={6} key={sectionName}>
+                                  <Box sx={{
+                                    p: 1,
+                                    bgcolor: isComplete ? 'success.lighter' : 'warning.lighter',
+                                    borderRadius: 1,
+                                    border: '1px solid',
+                                    borderColor: isComplete ? 'success.main' : 'warning.main'
+                                  }}>
+                                    <Typography variant="body2" fontWeight="bold">
+                                      Section {sectionName}: {selectedCount}/{requiredCount} {isComplete ? '✅' : '⚠️'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {isComplete ? 'Complete' : `Need ${requiredCount - selectedCount} more`}
+                                    </Typography>
+                                  </Box>
+                                </Grid>
+                              );
+                            })}
+                          </Grid>
+                        </Box>
+                      )}
                     </Box>
                   )}
 
@@ -2337,17 +2541,25 @@ const ExamInterface = () => {
                               ? <CheckCircle fontSize="small" />
                               : <RadioButtonUnchecked fontSize="small" />}
                             label={selectedQuestions[currentQuestion._id]
-                              ? "Selected for answering"
-                              : "Not selected (click to select)"}
-                            color={selectedQuestions[currentQuestion._id] ? "success" : "default"}
+                              ? "✅ Selected for answering"
+                              : "⭕ Click to select"}
+                            color={selectedQuestions[currentQuestion._id] ? "success" : "warning"}
+                            variant={selectedQuestions[currentQuestion._id] ? "filled" : "outlined"}
                             size="small"
                             onClick={() => handleQuestionSelection(currentQuestion._id)}
                             sx={{
                               cursor: 'pointer',
-                              fontWeight: 'medium',
+                              fontWeight: 'bold',
+                              transition: 'all 0.2s ease',
+                              animation: !selectedQuestions[currentQuestion._id] ? 'pulse 2s infinite' : 'none',
+                              '@keyframes pulse': {
+                                '0%': { opacity: 1 },
+                                '50%': { opacity: 0.7 },
+                                '100%': { opacity: 1 }
+                              },
                               '&:hover': {
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                                transform: 'translateY(-2px)'
+                                boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                                transform: 'translateY(-2px) scale(1.05)'
                               }
                             }}
                           />

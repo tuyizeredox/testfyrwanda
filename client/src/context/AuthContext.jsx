@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 import LoadingScreen from '../components/common/LoadingScreen';
 
@@ -19,19 +19,40 @@ export const AuthProvider = ({ children }) => {
         const savedToken = localStorage.getItem('token');
 
         if (savedUser && savedToken) {
-          // Parse the user data
-          const userData = JSON.parse(savedUser);
-
-          // Verify token with the server (optional but recommended)
           try {
-            // Make a request to verify the token
-            await api.get('/auth/verify');
+            // Parse the user data
+            const userData = JSON.parse(savedUser);
 
-            // If successful, set the user
-            setUser(userData);
-          } catch (err) {
-            console.error('Token verification failed:', err);
-            // Clear invalid auth data
+            // Basic token validation - check if it's not expired
+            if (userData.token) {
+              try {
+                // Decode JWT to check expiration (basic check)
+                const tokenParts = userData.token.split('.');
+                if (tokenParts.length === 3) {
+                  const payload = JSON.parse(atob(tokenParts[1]));
+                  const currentTime = Date.now() / 1000;
+
+                  // If token is expired, clear it
+                  if (payload.exp && payload.exp < currentTime) {
+                    console.log('Token expired, clearing auth data');
+                    localStorage.removeItem('user');
+                    localStorage.removeItem('token');
+                    return;
+                  }
+                }
+              } catch (tokenError) {
+                console.error('Error parsing token:', tokenError);
+                localStorage.removeItem('user');
+                localStorage.removeItem('token');
+                return;
+              }
+
+              // If token seems valid, set user without server verification
+              // Server verification will happen automatically on first API call
+              setUser(userData);
+            }
+          } catch (parseError) {
+            console.error('Error parsing saved user data:', parseError);
             localStorage.removeItem('user');
             localStorage.removeItem('token');
           }

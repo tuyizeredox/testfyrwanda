@@ -305,7 +305,18 @@ const getExams = async (req, res) => {
 // @access  Private
 const getExamById = async (req, res) => {
   try {
-    const exam = await Exam.findById(req.params.id)
+    const examId = req.params.id;
+
+    // Validate ObjectId format
+    if (!examId.match(/^[0-9a-fA-F]{24}$/)) {
+      console.log(`Invalid ObjectId format: ${examId}`);
+      return res.status(400).json({
+        message: 'Invalid exam ID format',
+        examId: examId
+      });
+    }
+
+    const exam = await Exam.findById(examId)
       .populate('createdBy', 'fullName')
       .populate({
         path: 'sections.questions',
@@ -648,8 +659,19 @@ const toggleExamLock = async (req, res) => {
 // @access  Private/Student
 const startExam = async (req, res) => {
   try {
+    const examId = req.params.id;
+
+    // Validate ObjectId format
+    if (!examId.match(/^[0-9a-fA-F]{24}$/)) {
+      console.log(`Invalid ObjectId format for startExam: ${examId}`);
+      return res.status(400).json({
+        message: 'Invalid exam ID format',
+        examId: examId
+      });
+    }
+
     // Use let instead of const so we can reassign it later
-    let exam = await Exam.findById(req.params.id)
+    let exam = await Exam.findById(examId)
       .populate({
         path: 'sections.questions',
         select: 'text type options points section'
@@ -880,15 +902,51 @@ const startExam = async (req, res) => {
       });
     });
 
+    // Group questions by section for proper initialization
+    const questionsBySection = {
+      A: allQuestions.filter(q => q.section === 'A'),
+      B: allQuestions.filter(q => q.section === 'B'),
+      C: allQuestions.filter(q => q.section === 'C')
+    };
+
+    console.log(`Exam ${exam._id} question distribution:`, {
+      sectionA: questionsBySection.A.length,
+      sectionB: questionsBySection.B.length,
+      sectionC: questionsBySection.C.length,
+      allowSelectiveAnswering: exam.allowSelectiveAnswering,
+      sectionBRequired: exam.sectionBRequiredQuestions || 3,
+      sectionCRequired: exam.sectionCRequiredQuestions || 1
+    });
+
     // Create a new result
     const result = await Result.create({
       student: req.user._id,
       exam: exam._id,
       startTime: Date.now(),
       maxPossibleScore,
-      answers: allQuestions.map(question => {
-        // For selective answering, initialize section B and C questions as not selected
-        const isSelected = !exam.allowSelectiveAnswering || question.section === 'A';
+      answers: allQuestions.map((question) => {
+        let isSelected = true; // Default to selected for all questions
+
+        // For selective answering, initialize section B and C questions based on required count
+        if (exam.allowSelectiveAnswering && (question.section === 'B' || question.section === 'C')) {
+          // Get required questions count for this section
+          const requiredCount = question.section === 'B'
+            ? (exam.sectionBRequiredQuestions || 3)
+            : (exam.sectionCRequiredQuestions || 1);
+
+          // Get the index of this question within its section (sorted by _id for consistency)
+          const sectionQuestions = questionsBySection[question.section].sort((a, b) =>
+            a._id.toString().localeCompare(b._id.toString())
+          );
+          const questionIndexInSection = sectionQuestions.findIndex(q =>
+            q._id.toString() === question._id.toString()
+          );
+
+          // Select only the first N questions by default (where N is the required count)
+          isSelected = questionIndexInSection < requiredCount;
+
+          console.log(`Initializing question ${question._id} in section ${question.section}: index ${questionIndexInSection}/${sectionQuestions.length}, required ${requiredCount}, selected: ${isSelected}`);
+        }
 
         return {
           question: question._id,
@@ -1252,8 +1310,11 @@ const submitAnswer = async (req, res) => {
       result.answers[answerIndex].isCorrect = isCorrect;
       result.answers[answerIndex].score = isCorrect ? question.points : 0;
 
-      // Store the correct answer for display in results
-      result.answers[answerIndex].correctedAnswer = correctOptionText;
+      // Store the correct answer for display in results (with letter and text)
+      const correctAnswerDisplay = correctOptionLetter
+        ? `${correctOptionLetter}. ${correctOptionText}`
+        : correctOptionText;
+      result.answers[answerIndex].correctedAnswer = correctAnswerDisplay;
       if (correctOptionLetter) {
         result.answers[answerIndex].correctOptionLetter = correctOptionLetter;
       }
@@ -1690,9 +1751,9 @@ const completeExam = async (req, res) => {
       console.log(`Section B: ${sectionBQuestions.length} questions`);
       console.log(`Section C: ${sectionCQuestions.length} questions`);
 
-      // Get selected questions by section
-      const selectedSectionBQuestions = sectionBQuestions.filter(answer => answer.isSelected);
-      const selectedSectionCQuestions = sectionCQuestions.filter(answer => answer.isSelected);
+      // Get selected questions by section - only count questions that are both selected AND answered
+      const selectedSectionBQuestions = sectionBQuestions.filter(answer => answer.isSelected === true);
+      const selectedSectionCQuestions = sectionCQuestions.filter(answer => answer.isSelected === true);
 
       // Log selected questions for debugging
       console.log(`Selected in Section B: ${selectedSectionBQuestions.length} questions`);
@@ -1700,11 +1761,11 @@ const completeExam = async (req, res) => {
 
       // Log the selection status of each question in sections B and C
       sectionBQuestions.forEach((answer, index) => {
-        console.log(`Section B Question ${index + 1} (${answer.question._id}): isSelected=${answer.isSelected}`);
+        console.log(`Section B Question ${index + 1} (${answer.question._id}): isSelected=${answer.isSelected}, hasAnswer=${!!(answer.textAnswer || answer.selectedOption)}`);
       });
 
       sectionCQuestions.forEach((answer, index) => {
-        console.log(`Section C Question ${index + 1} (${answer.question._id}): isSelected=${answer.isSelected}`);
+        console.log(`Section C Question ${index + 1} (${answer.question._id}): isSelected=${answer.isSelected}, hasAnswer=${!!(answer.textAnswer || answer.selectedOption)}`);
       });
 
       // Check if student has answered the required number of questions in each section
@@ -1739,39 +1800,24 @@ const completeExam = async (req, res) => {
           const sectionBScore = selectedSectionBQuestions.reduce((total, answer) =>
             total + (answer.score || 0), 0);
 
-          // For max possible score, use the required number of questions with highest points
-          // Sort questions by points in descending order
-          const sortedQuestions = [...selectedSectionBQuestions].sort((a, b) =>
-            (b.question.points || 1) - (a.question.points || 1));
-
-          // Take the top requiredSectionB questions or all if fewer
-          const topQuestions = sortedQuestions.slice(0, requiredSectionB);
-          const sectionBMaxScore = topQuestions.reduce((total, answer) =>
-            total + (answer.question.points || 1), 0);
+          // For max possible score in selective answering, use the required number of questions
+          // Each question has equal weight in the calculation
+          const sectionBMaxScore = requiredSectionB * (sectionBQuestions[0]?.question?.points || 1);
 
           totalScore += sectionBScore;
           maxPossibleScore += sectionBMaxScore;
 
-          console.log(`Section B score: ${sectionBScore}/${sectionBMaxScore} (from ${selectedSectionBQuestions.length} selected questions)`);
+          console.log(`Section B score: ${sectionBScore}/${sectionBMaxScore} (from ${selectedSectionBQuestions.length} selected questions, required: ${requiredSectionB})`);
         } else {
-          // Not enough questions selected - count all questions in the section
-          console.log('Not enough questions selected in Section B - counting all questions');
-          const sectionBScore = sectionBQuestions.reduce((total, answer) => total + (answer.score || 0), 0);
+          // Not enough questions selected - give zero score for this section
+          console.log(`Not enough questions selected in Section B (${selectedSectionBQuestions.length}/${requiredSectionB}) - giving zero score`);
+          const sectionBMaxScore = requiredSectionB * (sectionBQuestions[0]?.question?.points || 1);
 
-          // For max possible score, use the required number of questions with highest points
-          // Sort questions by points in descending order
-          const sortedQuestions = [...sectionBQuestions].sort((a, b) =>
-            (b.question.points || 1) - (a.question.points || 1));
-
-          // Take the top requiredSectionB questions or all if fewer
-          const topQuestions = sortedQuestions.slice(0, Math.min(requiredSectionB, sortedQuestions.length));
-          const sectionBMaxScore = topQuestions.reduce((total, answer) =>
-            total + (answer.question.points || 1), 0);
-
-          totalScore += sectionBScore;
+          // Add zero to total score but still count the max possible score
+          totalScore += 0;
           maxPossibleScore += sectionBMaxScore;
 
-          console.log(`Section B score: ${sectionBScore}/${sectionBMaxScore} (from all ${sectionBQuestions.length} questions, counting top ${topQuestions.length})`);
+          console.log(`Section B score: 0/${sectionBMaxScore} (insufficient questions selected)`);
         }
       } else {
         console.log('No questions in Section B');
@@ -1784,39 +1830,24 @@ const completeExam = async (req, res) => {
           const sectionCScore = selectedSectionCQuestions.reduce((total, answer) =>
             total + (answer.score || 0), 0);
 
-          // For max possible score, use the required number of questions with highest points
-          // Sort questions by points in descending order
-          const sortedQuestions = [...selectedSectionCQuestions].sort((a, b) =>
-            (b.question.points || 1) - (a.question.points || 1));
-
-          // Take the top requiredSectionC questions or all if fewer
-          const topQuestions = sortedQuestions.slice(0, requiredSectionC);
-          const sectionCMaxScore = topQuestions.reduce((total, answer) =>
-            total + (answer.question.points || 1), 0);
+          // For max possible score in selective answering, use the required number of questions
+          // Each question has equal weight in the calculation
+          const sectionCMaxScore = requiredSectionC * (sectionCQuestions[0]?.question?.points || 1);
 
           totalScore += sectionCScore;
           maxPossibleScore += sectionCMaxScore;
 
-          console.log(`Section C score: ${sectionCScore}/${sectionCMaxScore} (from ${selectedSectionCQuestions.length} selected questions)`);
+          console.log(`Section C score: ${sectionCScore}/${sectionCMaxScore} (from ${selectedSectionCQuestions.length} selected questions, required: ${requiredSectionC})`);
         } else {
-          // Not enough questions selected - count all questions in the section
-          console.log('Not enough questions selected in Section C - counting all questions');
-          const sectionCScore = sectionCQuestions.reduce((total, answer) => total + (answer.score || 0), 0);
+          // Not enough questions selected - give zero score for this section
+          console.log(`Not enough questions selected in Section C (${selectedSectionCQuestions.length}/${requiredSectionC}) - giving zero score`);
+          const sectionCMaxScore = requiredSectionC * (sectionCQuestions[0]?.question?.points || 1);
 
-          // For max possible score, use the required number of questions with highest points
-          // Sort questions by points in descending order
-          const sortedQuestions = [...sectionCQuestions].sort((a, b) =>
-            (b.question.points || 1) - (a.question.points || 1));
-
-          // Take the top requiredSectionC questions or all if fewer
-          const topQuestions = sortedQuestions.slice(0, Math.min(requiredSectionC, sortedQuestions.length));
-          const sectionCMaxScore = topQuestions.reduce((total, answer) =>
-            total + (answer.question.points || 1), 0);
-
-          totalScore += sectionCScore;
+          // Add zero to total score but still count the max possible score
+          totalScore += 0;
           maxPossibleScore += sectionCMaxScore;
 
-          console.log(`Section C score: ${sectionCScore}/${sectionCMaxScore} (from all ${sectionCQuestions.length} questions, counting top ${topQuestions.length})`);
+          console.log(`Section C score: 0/${sectionCMaxScore} (insufficient questions selected)`);
         }
       } else {
         console.log('No questions in Section C');
@@ -1844,8 +1875,60 @@ const completeExam = async (req, res) => {
     result.isCompleted = true;
     result.endTime = Date.now();
 
-    // Save the result
-    await result.save();
+    // Validate gradingMethod values before saving
+    const validGradingMethods = [
+      'enhanced_grading', 'semantic_match', 'direct_comparison', 'keyword_matching',
+      'default_fallback', 'background_ai_grading', 'manual_grading', 'ai_grading',
+      'regrade_ai_grading', 'admin_regrade', 'ai_assisted', 'predefined',
+      'error_fallback', 'fallback', 'no_answer', 'fallback_no_answer',
+      'fallback_no_model', 'fallback_exact_match', 'fallback_exact_match_cleaned',
+      'fallback_abbreviation_match', 'fallback_expansion_match', 'fallback_semantic_match',
+      'fallback_keyword_matching'
+    ];
+
+    result.answers.forEach((answer, index) => {
+      if (answer.gradingMethod && !validGradingMethods.includes(answer.gradingMethod)) {
+        console.warn(`Invalid gradingMethod "${answer.gradingMethod}" for answer ${index}, setting to fallback`);
+        answer.gradingMethod = 'fallback';
+      }
+      // Ensure gradingMethod is set
+      if (!answer.gradingMethod) {
+        answer.gradingMethod = 'enhanced_grading';
+      }
+    });
+
+    // Save the result with validation
+    try {
+      await result.save();
+      console.log(`✅ Successfully saved exam result ${result._id}`);
+    } catch (saveError) {
+      console.error('❌ Error saving exam result:', saveError);
+
+      // If validation fails, try to fix the data and save again
+      if (saveError.name === 'ValidationError') {
+        console.log('Attempting to fix validation errors...');
+
+        // Fix any remaining validation issues
+        result.answers.forEach((answer) => {
+          // Ensure all required fields have valid values
+          if (!answer.gradingMethod || !validGradingMethods.includes(answer.gradingMethod)) {
+            answer.gradingMethod = 'fallback';
+          }
+          if (typeof answer.score !== 'number' || isNaN(answer.score)) {
+            answer.score = 0;
+          }
+          if (typeof answer.isCorrect !== 'boolean') {
+            answer.isCorrect = false;
+          }
+        });
+
+        // Try saving again
+        await result.save();
+        console.log(`✅ Successfully saved exam result after fixing validation errors`);
+      } else {
+        throw saveError;
+      }
+    }
 
     // Return the result data
     return result;
@@ -2794,9 +2877,33 @@ const enableSelectiveAnswering = async (req, res) => {
 // @access  Private/Student
 const selectQuestion = async (req, res) => {
   try {
+    console.log('=== SELECT QUESTION ENDPOINT CALLED ===');
+    console.log('Request params:', req.params);
+    console.log('Request body:', req.body);
+    console.log('User:', req.user?._id);
+
     const { questionId, isSelected } = req.body;
 
+    // Validate input
+    if (!questionId) {
+      console.log('❌ Question ID is missing');
+      return res.status(400).json({ message: 'Question ID is required' });
+    }
+
+    if (typeof isSelected !== 'boolean') {
+      console.log('❌ isSelected is not a boolean:', typeof isSelected, isSelected);
+      return res.status(400).json({ message: 'isSelected must be a boolean value' });
+    }
+
+    console.log('✅ Input validation passed:', { questionId, isSelected });
+
     // Find the result for this student and exam
+    console.log('🔍 Looking for exam result:', {
+      student: req.user._id,
+      exam: req.params.id,
+      isCompleted: false
+    });
+
     const result = await Result.findOne({
       student: req.user._id,
       exam: req.params.id,
@@ -2807,8 +2914,16 @@ const selectQuestion = async (req, res) => {
     });
 
     if (!result) {
+      console.log('❌ Exam session not found or already completed');
       return res.status(404).json({ message: 'Exam session not found or already completed' });
     }
+
+    console.log('✅ Found exam result:', {
+      resultId: result._id,
+      examId: result.exam._id,
+      allowSelectiveAnswering: result.exam.allowSelectiveAnswering,
+      answersCount: result.answers.length
+    });
 
     // Check if selective answering is enabled for this exam
     if (!result.exam.allowSelectiveAnswering) {
@@ -2816,10 +2931,17 @@ const selectQuestion = async (req, res) => {
     }
 
     // Find the question
+    console.log(`🔍 Looking for question with ID: ${questionId}`);
     const question = await Question.findById(questionId);
     if (!question) {
-      return res.status(404).json({ message: 'Question not found' });
+      console.log(`❌ Question not found in database: ${questionId}`);
+      return res.status(404).json({
+        message: 'Question not found',
+        questionId: questionId,
+        error: 'QUESTION_NOT_FOUND'
+      });
     }
+    console.log(`✅ Found question: ${question._id} in section ${question.section}`);
 
     // Check if the question is in section B or C (only these sections support selective answering)
     if (question.section !== 'B' && question.section !== 'C') {
@@ -2832,48 +2954,47 @@ const selectQuestion = async (req, res) => {
     console.log(`Exam selective answering config: B=${result.exam.sectionBRequiredQuestions || 3}, C=${result.exam.sectionCRequiredQuestions || 1}`);
 
     // Find the answer in the result
+    console.log(`🔍 Looking for answer in result with ${result.answers.length} answers`);
+    console.log(`Question IDs in result:`, result.answers.map(a => a.question.toString()));
+
     const answerIndex = result.answers.findIndex(
       answer => answer.question.toString() === questionId
     );
 
     if (answerIndex === -1) {
-      return res.status(404).json({ message: 'Answer not found in result' });
+      console.log(`❌ Answer not found in result for question: ${questionId}`);
+      console.log(`Available question IDs:`, result.answers.map(a => a.question.toString()));
+      return res.status(404).json({
+        message: 'Answer not found in result',
+        questionId: questionId,
+        availableQuestions: result.answers.map(a => a.question.toString()),
+        error: 'ANSWER_NOT_FOUND'
+      });
     }
+
+    console.log(`✅ Found answer at index ${answerIndex}, current selection: ${result.answers[answerIndex].isSelected}`);
 
     // If we're trying to deselect, check if we have enough selected questions in this section
     if (!isSelected) {
       // Log for debugging
       console.log(`Attempting to deselect question ${questionId} in section ${question.section}`);
 
-      // Count currently selected questions in this section
-      // We need to populate the question field to access the section
-      await result.populate('answers.question');
+      // Get all questions in this section from the exam
+      const allQuestionsInSection = await Question.find({ section: question.section });
+      const questionIdsInSection = allQuestionsInSection.map(q => q._id.toString());
 
+      console.log(`Found ${questionIdsInSection.length} total questions in section ${question.section}`);
+
+      // Count currently selected questions in this section (excluding the one we're about to deselect)
       const selectedAnswers = result.answers.filter(answer =>
         answer.isSelected &&
-        answer.question &&
-        answer.question.section === question.section &&
-        answer.question._id.toString() !== questionId // Exclude the current question since we're deselecting it
+        questionIdsInSection.includes(answer.question.toString()) &&
+        answer.question.toString() !== questionId // Exclude the current question since we're deselecting it
       );
 
       const selectedInSection = selectedAnswers.length;
 
       console.log(`Found ${selectedInSection} other selected questions in section ${question.section} (excluding current question)`);
-
-      // Log all answers in this section for debugging
-      const allSectionAnswers = result.answers.filter(answer =>
-        answer.question &&
-        answer.question.section === question.section
-      );
-
-      console.log(`Total questions in section ${question.section}: ${allSectionAnswers.length}`);
-      allSectionAnswers.forEach(answer => {
-        console.log(`Question ${answer.question._id}: isSelected=${answer.isSelected}`);
-      });
-
-      // Log selected questions for debugging
-      console.log(`Currently selected questions in section ${question.section}: ${selectedInSection}`);
-      console.log('Selected question IDs:', selectedAnswers.map(a => a.question._id));
 
       // Get required questions count for this section
       const requiredCount = question.section === 'B'
@@ -2896,17 +3017,40 @@ const selectQuestion = async (req, res) => {
     // Update the selection status
     result.answers[answerIndex].isSelected = isSelected;
 
-    // Save the result
-    await result.save();
+    // Save the result with error handling
+    try {
+      console.log(`💾 Saving result with updated selection...`);
+      await result.save();
+      console.log(`✅ Successfully updated selection for question ${questionId}: isSelected=${isSelected}`);
+    } catch (saveError) {
+      console.error('❌ Error saving question selection:', saveError);
+      console.error('Save error details:', {
+        name: saveError.name,
+        message: saveError.message,
+        code: saveError.code,
+        stack: saveError.stack
+      });
+      return res.status(500).json({
+        message: 'Failed to save question selection. Please try again.',
+        error: saveError.message,
+        errorType: saveError.name,
+        errorCode: 'SAVE_FAILED'
+      });
+    }
 
     res.json({
       message: isSelected ? 'Question selected for answering' : 'Question deselected',
       questionId,
-      isSelected
+      isSelected,
+      success: true
     });
   } catch (error) {
     console.error('Select question error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({
+      message: 'Server error while updating question selection',
+      error: error.message,
+      success: false
+    });
   }
 };
 

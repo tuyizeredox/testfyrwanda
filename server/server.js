@@ -105,6 +105,16 @@ app.use('/api/student', studentRoutes);
 app.use('/api/exam', examRoutes);
 app.use('/api/profile', profileRoutes);
 
+// Log registered routes for debugging
+console.log('Registered API routes:');
+console.log('- /api/auth/* (Authentication routes)');
+console.log('- /api/admin/* (Admin routes)');
+console.log('- /api/student/* (Student routes)');
+console.log('- /api/exam/* (Exam routes)');
+console.log('- /api/profile/* (Profile routes)');
+console.log('- /api/exam/test-routes (Debug route)');
+console.log('- /api/exam/:id/select-question (Question selection route)');
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({

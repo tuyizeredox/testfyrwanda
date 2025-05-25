@@ -108,7 +108,16 @@ const ResultSchema = new mongoose.Schema({
         'ai_assisted',
         'predefined',
         'error_fallback',
-        'fallback'
+        'fallback',
+        'no_answer',
+        'fallback_no_answer',
+        'fallback_no_model',
+        'fallback_exact_match',
+        'fallback_exact_match_cleaned',
+        'fallback_abbreviation_match',
+        'fallback_expansion_match',
+        'fallback_semantic_match',
+        'fallback_keyword_matching'
       ],
       default: 'enhanced_grading'
     }

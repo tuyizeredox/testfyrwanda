@@ -194,8 +194,9 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
     if (!selectedOption) {
       return {
         score: 0,
-        feedback: 'No answer selected',
-        details: { answerType: 'no_answer' }
+        feedback: 'No answer provided',
+        details: { answerType: 'unanswered' },
+        correctedAnswer: modelAnswer || 'No correct answer available'
       };
     }
 
@@ -258,40 +259,81 @@ const gradeMultipleChoice = async (question, answer, modelAnswer) => {
              selected.includes(optText);
     });
 
-    // Check if we have a model answer to compare against
-    if (modelAnswer) {
-      // Use AI to determine if the answer is correct
-      const answerText = option ? option.text : selectedOption;
-      isCorrect = await checkAnswerWithAI(question.text, answerText, modelAnswer, 'multiple-choice');
-    } else {
-      // Use the question's options to determine correctness
-      correctOption = question.options.find(opt => opt.isCorrect);
-      if (correctOption && option) {
-        isCorrect = option.letter === correctOption.letter ||
-                   option.text === correctOption.text ||
-                   option._id === correctOption._id;
-      } else if (option) {
-        // Check if the selected option is marked as correct
-        isCorrect = option.isCorrect === true;
+    // First, try to find the correct option from the question's options
+    correctOption = question.options.find(opt => opt.isCorrect);
+
+    // If no option is marked as correct, try to determine from modelAnswer
+    if (!correctOption && modelAnswer) {
+      // Check if modelAnswer is a letter (A, B, C, D)
+      const modelAnswerLetter = modelAnswer.trim().toUpperCase();
+      if (['A', 'B', 'C', 'D'].includes(modelAnswerLetter)) {
+        correctOption = question.options.find(opt =>
+          opt.letter && opt.letter.toUpperCase() === modelAnswerLetter
+        );
+      } else {
+        // modelAnswer is text, find matching option
+        correctOption = question.options.find(opt =>
+          opt.text && opt.text.toLowerCase().trim() === modelAnswer.toLowerCase().trim()
+        );
       }
     }
 
+    // Determine if the selected option is correct
+    if (correctOption && option) {
+      isCorrect = option.letter === correctOption.letter ||
+                 option.text === correctOption.text ||
+                 option._id === correctOption._id;
+    } else if (option) {
+      // Check if the selected option is marked as correct
+      isCorrect = option.isCorrect === true;
+    } else if (correctOption) {
+      // No option found for selection, but we have a correct option
+      // Check if selectedOption matches the correct option text or letter
+      const selectedLower = selectedOption.toLowerCase().trim();
+      const correctText = correctOption.text.toLowerCase().trim();
+      const correctLetter = correctOption.letter ? correctOption.letter.toLowerCase() : '';
+
+      isCorrect = selectedLower === correctText ||
+                 selectedLower === correctLetter ||
+                 selectedLower === correctLetter.toUpperCase();
+    }
+
     const score = isCorrect ? (question.points || 1) : 0;
+
+    // Create proper feedback showing both letter and text
+    let correctAnswerDisplay = '';
+    if (correctOption) {
+      correctAnswerDisplay = correctOption.letter
+        ? `${correctOption.letter}. ${correctOption.text}`
+        : correctOption.text;
+    } else {
+      correctAnswerDisplay = modelAnswer || 'Not available';
+    }
+
+    let selectedAnswerDisplay = '';
+    if (option) {
+      selectedAnswerDisplay = option.letter
+        ? `${option.letter}. ${option.text}`
+        : option.text;
+    } else {
+      selectedAnswerDisplay = selectedOption;
+    }
+
     const feedback = isCorrect
-      ? 'Correct! Well done.'
-      : `Incorrect. The correct answer is: ${correctOption?.text || modelAnswer}`;
+      ? `Correct! You selected: ${selectedAnswerDisplay}`
+      : `Incorrect. You selected: ${selectedAnswerDisplay}. The correct answer is: ${correctAnswerDisplay}`;
 
     return {
       score,
       feedback,
-      correctedAnswer: correctOption?.text || modelAnswer,
+      correctedAnswer: correctAnswerDisplay,
       details: {
         selectedOption: option ? option.letter : selectedOption,
         selectedText: option ? option.text : selectedOption,
-        correctOption: correctOption?.text || modelAnswer,
+        correctOption: correctAnswerDisplay,
         isCorrect,
         answerType: 'multiple_choice',
-        gradingMethod: modelAnswer ? 'ai_assisted' : 'predefined'
+        gradingMethod: 'predefined'
       }
     };
   } catch (error) {
@@ -317,8 +359,9 @@ const gradeTrueFalse = async (question, answer, modelAnswer) => {
     if (!selectedOption) {
       return {
         score: 0,
-        feedback: 'No answer selected',
-        details: { answerType: 'no_answer' }
+        feedback: 'No answer provided',
+        details: { answerType: 'unanswered' },
+        correctedAnswer: modelAnswer || 'No correct answer available'
       };
     }
 
@@ -383,8 +426,9 @@ const gradeFillInBlank = async (question, answer, modelAnswer) => {
     if (!studentAnswer || studentAnswer === '') {
       return {
         score: 0,
-        feedback: 'No answer provided for this fill-in-blank question',
-        details: { answerType: 'no_answer' }
+        feedback: 'No answer provided',
+        details: { answerType: 'unanswered' },
+        correctedAnswer: modelAnswer || question.correctAnswer || 'No correct answer available'
       };
     }
 
@@ -487,7 +531,8 @@ const gradeMatching = async (question, answer) => {
       return {
         score: 0,
         feedback: 'No matches provided',
-        details: { answerType: 'no_answer' }
+        details: { answerType: 'unanswered' },
+        correctedAnswer: 'See correct matching pairs in the answer key'
       };
     }
 
@@ -537,7 +582,8 @@ const gradeOrdering = async (question, answer) => {
       return {
         score: 0,
         feedback: 'No order provided',
-        details: { answerType: 'no_answer' }
+        details: { answerType: 'unanswered' },
+        correctedAnswer: 'See correct order in the answer key'
       };
     }
 
@@ -587,7 +633,8 @@ const gradeDragDrop = async (question, answer) => {
       return {
         score: 0,
         feedback: 'No items placed',
-        details: { answerType: 'no_answer' }
+        details: { answerType: 'unanswered' },
+        correctedAnswer: 'See correct placements in the answer key'
       };
     }
 
